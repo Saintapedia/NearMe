@@ -21,6 +21,7 @@
 		this.error = null;
 		this.loading = false;
 		this.showButtonDisabled = false;
+		this.loadInFlight = null;
 		this.render();
 		this.bindRoutes();
 	}
@@ -90,18 +91,29 @@
 
 	NearMeApp.prototype.loadPages = function ( lat, lon ) {
 		var self = this;
+		var coordKey = lat + ',' + lon;
+
+		if ( this.loadInFlight === coordKey ) {
+			return;
+		}
+		this.loadInFlight = coordKey;
+
 		this.error = null;
 		this.loading = true;
 		this.pages = [];
 		this.render();
 
-		mw.router.navigateTo( null, {
-			path: '#/coord/' + lat + ',' + lon,
-			useReplaceState: true
-		} );
+		var coordPath = '/coord/' + lat + ',' + lon;
+		if ( location.hash.replace( /^#/, '' ) !== coordPath ) {
+			mw.router.navigateTo( null, {
+				path: '#' + coordPath,
+				useReplaceState: true
+			} );
+		}
 
 		nearbyApi.getPagesAtCoordinates( lat, lon ).then( function ( result ) {
 			self.loading = false;
+			self.loadInFlight = null;
 			if ( result.pages.length === 0 ) {
 				self.error = mw.msg( 'nearme-noresults' ) + ' ' + mw.msg( 'nearme-noresults-guidance' );
 				self.pages = [];
@@ -112,6 +124,7 @@
 			self.render();
 		}, function () {
 			self.loading = false;
+			self.loadInFlight = null;
 			self.setError( 'nearme-error' );
 		} );
 	};

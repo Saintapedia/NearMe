@@ -102,6 +102,9 @@ class NearbyQueryService {
 			}
 
 			$distMeters = self::haversineMeters( $lat, $lon, $rowLat, $rowLon );
+			if ( $distMeters > $radiusMeters ) {
+				continue;
+			}
 
 			$results[] = [
 				'pageid' => $pageId,
