@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"author": [ "Saintapedia contributors" ],
 	"url": "https://github.com/Saintapedia/NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -91,12 +91,12 @@
 		"NearMeTables": {
 			"value": [
 				{
-					"table": "Saints",
-					"coordField": "Coordinates",
-					"labelField": "Name"
+					"table": "Parishes",
+					"coordField": "ParishLocation",
+					"labelField": "ShortName"
 				}
 			],
-			"description": "Cargo tables to search. Each entry: table, coordField, optional labelField."
+			"description": "Cargo tables to search. Each entry: table, coordField, optional labelField. Saintapedia Parishes use ParishLocation + ShortName (see Template:Parish)."
 		}
 	},
 	"manifest_version": 2

@@ -8,7 +8,8 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
-- **Multi-table support** — search Saints, Parishes, Churches, etc. from one interface
+- **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
+- **Multi-table support** — add Saints, Shrines, etc. via `$wgNearMeTables`
 - **MW 1.39+ compatible** — no Codex/Vue dependency (unlike upstream NearbyPages 1.47+)
 
 ## Requirements
@@ -40,16 +41,12 @@ Cargo tables must declare a field of type `Coordinates`.
 3. Configure Cargo tables to search (adjust table/field names to match your wiki):
 
    ```php
+   // Matches Template:Parish on saintapedia.org (Special:CargoTables → Parishes)
    $wgNearMeTables = [
        [
-           'table' => 'Saints',
-           'coordField' => 'Coordinates',
-           'labelField' => 'Name',
-       ],
-       [
            'table' => 'Parishes',
-           'coordField' => 'Coordinates',
-           'labelField' => 'Name',
+           'coordField' => 'ParishLocation',
+           'labelField' => 'ShortName',
        ],
    ];
 
@@ -77,11 +74,11 @@ Optional `table` parameter restricts the search to one configured Cargo table.
     {
       "pageid": 1234,
       "ns": 0,
-      "title": "St. Paul Cathedral",
+      "title": "Blessed Sacrament (Anchorage)",
       "lat": 40.4412,
       "lon": -79.9963,
       "dist": 812.4,
-      "label": "St. Paul Cathedral",
+      "label": "Blessed Sacrament",
       "table": "Parishes"
     }
   ]

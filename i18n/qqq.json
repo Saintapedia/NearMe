@@ -1,9 +1,9 @@
 {
 	"nearme-desc": "{{desc|name=NearMe|url=https://github.com/Saintapedia/NearMe}}",
 	"nearme-title": "Page title for Special:Nearby.",
-	"nearme-info-heading": "Heading shown before the user searches.",
-	"nearme-info-description": "Description shown before the user searches.",
-	"nearme-show-button": "Label for the button that requests geolocation and loads results.",
+	"nearme-info-heading": "Heading shown before the user searches (parish-focused on Saintapedia).",
+	"nearme-info-description": "Description shown before the user searches (parish-focused on Saintapedia).",
+	"nearme-show-button": "Label for the button that requests geolocation and loads nearby parish results.",
 	"nearme-distance-km": "Distance label in kilometres. Parameters:\n* $1 - formatted distance",
 	"nearme-distance-m": "Distance label in metres. Parameters:\n* $1 - formatted distance",
 	"nearme-requirements": "Title of the noscript error box.",

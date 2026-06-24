@@ -77,6 +77,9 @@ Special:Nearby → ext.NearMe.js → action=cargonearby
 
 Config: `$wgNearMeTables`, `$wgNearMeDefaultRadius`, `$wgNearMeDefaultLimit` in `LocalSettings.php`.
 
+**Saintapedia Parishes schema** (from `Template:Parish`):
+- Table `Parishes`, coord field `ParishLocation`, label `ShortName`
+
 ## Key files
 
 | Path | Role |
