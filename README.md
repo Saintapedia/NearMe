@@ -38,10 +38,34 @@ Cargo tables must declare a field of type `Coordinates`.
    wfLoadExtension( 'NearMe' );
    ```
 
-3. Configure Cargo tables to search (adjust table/field names to match your wiki):
+3. Configure Cargo tables to search.
+
+   **Saintapedia `Parishes` table** ([Special:Drilldown/Parishes](https://saintapedia.org/wiki/Special:Drilldown/Parishes)):
+
+   | Field | Type | NearMe uses |
+   |-------|------|-------------|
+   | `ParishLocation` | Coordinates | **geosearch** (`coordField`) |
+   | `ShortName` | Text | **list label** (`labelField`) |
+   | `Dedication` | Page | — |
+   | `Diocese` | Page | — |
+   | `Deanery` | Page | — |
+   | `MailingAddress` | Searchtext | — |
+   | `City` | Page | — |
+   | `AdministrativeSubdivision` | Page | — |
+   | `Country` | Page | — |
+   | `County` | Page | — |
+   | `ParishImage` | File | — |
+   | `ParishWebsite` | URL | — |
+   | `ParishFounded` | Start date | — |
+   | `ParishSchool` | Boolean | — |
+   | `ParishEmailAddress` | Email | — |
+   | `VeneratedSaints` | List of Page | — |
+   | `Type` | List of String | — |
+   | `IsNonParochial` | Boolean | — |
+   | `OperatedBy` | Page | — |
+   | `Maintenance` | List of String | — |
 
    ```php
-   // Matches Template:Parish on saintapedia.org (Special:CargoTables → Parishes)
    $wgNearMeTables = [
        [
            'table' => 'Parishes',
@@ -56,7 +80,9 @@ Cargo tables must declare a field of type `Coordinates`.
 
 4. Run `php maintenance/update.php` and verify at [Special:Version](Special:Version).
 
-5. Open [Special:Nearby](Special:Nearby) and click **Show nearby pages**.
+5. Open [Special:Nearby](Special:Nearby) and click **Show nearby parishes**.
+
+   Parishes without `ParishLocation` coordinates are excluded automatically.
 
 ## API
 

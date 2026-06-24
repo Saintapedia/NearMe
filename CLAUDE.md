@@ -77,8 +77,32 @@ Special:Nearby → ext.NearMe.js → action=cargonearby
 
 Config: `$wgNearMeTables`, `$wgNearMeDefaultRadius`, `$wgNearMeDefaultLimit` in `LocalSettings.php`.
 
-**Saintapedia Parishes schema** (from `Template:Parish`):
-- Table `Parishes`, coord field `ParishLocation`, label `ShortName`
+**Saintapedia Parishes schema** ([Special:Drilldown/Parishes](https://saintapedia.org/wiki/Special:Drilldown/Parishes)):
+
+| Field | Type |
+|-------|------|
+| Dedication | Page |
+| ShortName | Text |
+| Diocese | Page |
+| Deanery | Page |
+| MailingAddress | Searchtext |
+| **ParishLocation** | **Coordinates** ← `coordField` |
+| City | Page |
+| AdministrativeSubdivision | Page |
+| Country | Page |
+| County | Page |
+| ParishImage | File |
+| ParishWebsite | URL |
+| ParishFounded | Start date |
+| ParishSchool | Boolean |
+| ParishEmailAddress | Email |
+| VeneratedSaints | List of Page |
+| Type | List of String |
+| IsNonParochial | Boolean |
+| OperatedBy | Page |
+| Maintenance | List of String |
+
+NearMe config: `ParishLocation` + `ShortName` (falls back to wiki page title when ShortName is empty).
 
 ## Key files
 
