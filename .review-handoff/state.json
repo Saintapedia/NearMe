@@ -2,31 +2,15 @@
 	"version": 1,
 	"project": "NearMe",
 	"project_root": "/home/tom/NearMe",
-	"status": "pending",
+	"status": "complete",
 	"requested_at": "2026-06-23T00:00:00-04:00",
 	"requested_by": "Grok (Cursor)",
 	"reviewer": "Claude Code",
 	"baseline_sha": "7538685",
 	"baseline_sha_full": "7538685",
 	"scope": "Initial NearMe extension scaffold — Special:Nearby, action=cargonearby, Cargo NEAR queries, MW 1.39 frontend",
-	"review_file": null,
-	"completed_at": null,
-	"summary_for_grok": null,
-	"counts": {
-		"bugs": null,
-		"suggestions": null,
-		"nits": null
-	},
-	"instructions": {
-		"review_output_pattern": "CODE_REVIEW_YYYY-MM-DD_passN_<shortsha>.md",
-		"review_output_dir": "/home/tom/NearMe",
-		"log_index": "/home/tom/NearMe/REVIEW-LOG.md",
-		"event_log": "/home/tom/NearMe/.review-handoff/log.jsonl",
-		"on_complete": [
-			"Write CODE_REVIEW_* to repo root",
-			"Set status to complete in this file",
-			"Update REVIEW-LOG.md Active review table",
-			"Append event to log.jsonl"
-		]
-	}
+	"review_file": "CODE_REVIEW_2026-06-23_pass1_7538685.md",
+	"completed_at": "2026-06-23T12:00:00-04:00",
+	"summary_for_grok": "Pass 1 review of the initial NearMe scaffold (commit 7538685). Found 4 bugs: (B1) implicit nullable PHP 8.1 deprecation in ApiCargoNearby constructor; (B2) dieWithError passes table name as API $data instead of i18n param so '$1' is never substituted in the unknown-table error message; (B3) JS reads mw.config with 'wgNearMeDefaultRadius'/'wgNearMeDefaultLimit' keys (wrong prefix) so admin-configured radius/limit is always ignored; (B4) non-numeric gscoord parts silently cast to 0.0 bypassing validation. 5 suggestions: narrow exception catch in queryAll, deprecated wfLogWarning, mw.Title can throw in toCard, showButtonDisabled never reset, unverified router exit callback. 3 nits: dead nearme-error-guidance message, README PHP version wrong, missing explicit jquery dependency.",
+	"counts": { "bugs": 4, "suggestions": 5, "nits": 3 }
 }

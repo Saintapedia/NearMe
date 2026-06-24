@@ -36,7 +36,10 @@
 	 * @return {Object}
 	 */
 	function toCard( row ) {
-		var title = new mw.Title( row.title );
+		var title = mw.Title.newFromText( row.title );
+		if ( !title ) {
+			return null;
+		}
 		return {
 			url: title.getUrl(),
 			title: row.label || row.title,
@@ -57,8 +60,8 @@
 	 */
 	function getPagesAtCoordinates( lat, lon, options ) {
 		options = options || {};
-		var radius = options.radius || mw.config.get( 'wgNearMeDefaultRadius', 10000 );
-		var limit = options.limit || mw.config.get( 'wgNearMeDefaultLimit', 50 );
+		var radius = options.radius || mw.config.get( 'NearMeDefaultRadius', 10000 );
+		var limit = options.limit || mw.config.get( 'NearMeDefaultLimit', 50 );
 
 		return api.get( {
 			action: 'cargonearby',
@@ -70,7 +73,7 @@
 		} ).then( function ( data ) {
 			var rows = ( data && data.cargonearby ) ? data.cargonearby : [];
 			return {
-				pages: rows.map( toCard ),
+				pages: rows.map( toCard ).filter( Boolean ),
 				latitude: lat,
 				longitude: lon
 			};

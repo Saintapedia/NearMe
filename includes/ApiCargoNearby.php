@@ -23,7 +23,7 @@ class ApiCargoNearby extends ApiBase {
 
 	private NearbyQueryService $queryService;
 
-	public function __construct( ApiMain $main, string $action, NearbyQueryService $queryService = null ) {
+	public function __construct( ApiMain $main, string $action, ?NearbyQueryService $queryService = null ) {
 		parent::__construct( $main, $action );
 		$this->queryService = $queryService ?? new NearbyQueryService();
 	}
@@ -38,6 +38,10 @@ class ApiCargoNearby extends ApiBase {
 		$coord = $params['gscoord'];
 		$parts = explode( '|', $coord, 2 );
 		if ( count( $parts ) !== 2 ) {
+			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
+		}
+
+		if ( !is_numeric( $parts[0] ) || !is_numeric( $parts[1] ) ) {
 			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
 		}
 
@@ -58,7 +62,7 @@ class ApiCargoNearby extends ApiBase {
 		$tableFilter = $params['table'] !== '' ? $params['table'] : null;
 
 		if ( $tableFilter !== null && !$this->queryService->isKnownCargoTable( $tableFilter ) ) {
-			$this->dieWithError( 'nearme-error-unknown-table', 'unknown-table', [ 'table' => $tableFilter ] );
+			$this->dieWithError( [ 'nearme-error-unknown-table', $tableFilter ], 'unknown-table' );
 		}
 
 		$sources = $this->queryService->filterSources( $sources, $tableFilter );
@@ -69,9 +73,8 @@ class ApiCargoNearby extends ApiBase {
 		foreach ( $sources as $source ) {
 			if ( !$this->queryService->isKnownCargoTable( $source['table'] ) ) {
 				$this->dieWithError(
-					'nearme-error-unknown-table',
-					'unknown-table',
-					[ 'table' => $source['table'] ]
+					[ 'nearme-error-unknown-table', $source['table'] ],
+					'unknown-table'
 				);
 			}
 		}

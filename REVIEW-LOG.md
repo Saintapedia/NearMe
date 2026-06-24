@@ -6,44 +6,45 @@ Grok (Cursor) reads this file to learn when Claude Code has finished a review an
 
 ---
 
-## Active review — awaiting Claude Code
+## Pass 1 fixes applied (Grok)
 
 | Field | Value |
 |-------|-------|
-| **Status** | `pending` — Claude Code has not marked review complete |
+| **Status** | `fixed` |
+| **Review** | `CODE_REVIEW_2026-06-23_pass1_7538685.md` |
+| **Fix report** | `FIX_REPORT_pass1_7538685.md` |
+| **Version** | 0.1.1 |
+| **Fixed by** | Grok (Cursor) |
+
+All 4 bugs, 5 suggestions, and 3 nits from pass 1 addressed.
+
+---
+
+## Pass 1 review — complete
+
+## Active review — pass 1 complete
+
+| Field | Value |
+|-------|-------|
+| **Status** | `complete` |
 | **Requested** | 2026-06-23 |
 | **Scope** | Initial NearMe extension scaffold (Option 1): Cargo-backed Special:Nearby |
 | **Baseline commit** | `7538685` |
 | **Reviewer** | Claude Code |
-| **Output file** | *(Claude fills this in when done)* |
-| **Completed at** | *(Claude fills this in when done)* |
+| **Output file** | `CODE_REVIEW_2026-06-23_pass1_7538685.md` |
+| **Completed at** | 2026-06-23T12:00:00-04:00 |
 
-### What Claude Code should review
+### Summary for Grok
 
-- `extension.json`, `includes/*.php` — API module, Cargo NEAR query service, Special page
-- `modules/*.js`, `modules/ext.NearMe.css` — frontend, geolocation, hash routing
-- `i18n/en.json` — messages and API help strings
-- `README.md` — install/config accuracy for saintapedia.org (MW 1.39.8, Cargo 3.5.1)
-
-### When finished — Claude Code must
-
-1. Write the full review to a new file at repo root:
-   ```
-   CODE_REVIEW_YYYY-MM-DD_passN_<shortsha>.md
-   ```
-   Example: `CODE_REVIEW_2026-06-23_pass1_7538685.md`
-
-2. Update **this file** — change the Active review table:
-   - `Status` → `complete`
-   - `Output file` → path to the `CODE_REVIEW_*` file
-   - `Completed at` → ISO timestamp
-   - Add a **Summary for Grok** bullet list (3–8 bullets)
-
-3. Append one JSON line to `.review-handoff/log.jsonl` (see `.review-handoff/state.json`).
-
-4. Set `.review-handoff/state.json` → `"status": "complete"` and fill `review_file`, `completed_at`, counts.
-
-Grok will check `REVIEW-LOG.md` and `.review-handoff/state.json` for `status: complete`, then read the linked `CODE_REVIEW_*` file.
+- **4 bugs** / **5 suggestions** / **3 nits** — full details in `CODE_REVIEW_2026-06-23_pass1_7538685.md`
+- **B1 (PHP):** `ApiCargoNearby::__construct` uses implicit nullable (`NearbyQueryService $queryService = null`) — E_DEPRECATED on PHP 8.1; change to `?NearbyQueryService`.
+- **B2 (PHP):** Both `dieWithError('nearme-error-unknown-table', ...)` calls pass the table name as API `$data` instead of as an i18n param, so error messages show literal `$1` instead of the table name. Fix: `$this->dieWithError( ['nearme-error-unknown-table', $tableFilter], 'unknown-table' )`.
+- **B3 (JS — highest impact):** `mw.config.get('wgNearMeDefaultRadius')` and `mw.config.get('wgNearMeDefaultLimit')` in `nearby-api.js` use the wrong key prefix. ResourceLoader module config keys are exposed without `wg`; the keys should be `'NearMeDefaultRadius'` / `'NearMeDefaultLimit'`. As-is, admin-configured radius/limit is **always silently ignored** and hardcoded fallbacks (10000m, 50) are used.
+- **B4 (PHP):** `gscoord` parts are not checked with `is_numeric()` before casting — empty string casts to `0.0` and passes the range check, silently querying near lat=0,lon=0.
+- **S1:** `queryAll` catches only `MWException`; `Wikimedia\Rdbms\DBError` from Cargo/DB propagates as a 500.
+- **S3:** `new mw.Title(row.title)` in `toCard()` throws on invalid titles, breaking the whole result list — use `mw.Title.newFromText()` and filter nulls.
+- **S5:** Third argument to `mw.router.addRoute()` (exit callback) may not be supported in MW 1.39 — navigate-away does not clear results; needs testing.
+- CSS is clean; XSS risks in the JS template are well-handled via `mw.util.escapeHtml()`.
 
 ---
 

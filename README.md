@@ -17,7 +17,7 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 |---|---|
 | MediaWiki | >= 1.39 |
 | Cargo | >= 3.0 |
-| PHP | >= 7.4 |
+| PHP | >= 8.1 |
 
 Cargo tables must declare a field of type `Coordinates`.
 

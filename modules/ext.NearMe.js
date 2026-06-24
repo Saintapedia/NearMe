@@ -80,6 +80,9 @@
 
 	NearMeApp.prototype.setError = function ( messageKey ) {
 		this.error = mw.msg( messageKey );
+		if ( messageKey === 'nearme-error' ) {
+			this.error += ' ' + mw.msg( 'nearme-error-guidance' );
+		}
 		this.pages = [];
 		this.loading = false;
 		this.render();
@@ -115,6 +118,7 @@
 
 	NearMeApp.prototype.showNearby = function () {
 		var self = this;
+		this.showButtonDisabled = false;
 		this.error = null;
 		this.render();
 
@@ -136,6 +140,13 @@
 		} );
 	};
 
+	NearMeApp.prototype.clearResults = function () {
+		this.pages = [];
+		this.error = null;
+		this.loading = false;
+		this.render();
+	};
+
 	NearMeApp.prototype.bindRoutes = function () {
 		var self = this;
 		var coordinateRegex = /^\/coord\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/;
@@ -144,14 +155,16 @@
 			coordinateRegex,
 			function ( lat, lon ) {
 				self.loadPages( parseFloat( lat ), parseFloat( lon ) );
-			},
-			function () {
-				self.pages = [];
-				self.error = null;
-				self.loading = false;
-				self.render();
 			}
 		);
+
+		// MW 1.39 router has no documented exit callback; clear stale results on hash change.
+		window.addEventListener( 'hashchange', function () {
+			var path = location.hash.replace( /^#/, '' );
+			if ( !coordinateRegex.test( path ) ) {
+				self.clearResults();
+			}
+		} );
 
 		mw.router.checkRoute();
 	};

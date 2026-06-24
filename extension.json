@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"author": [ "Saintapedia contributors" ],
 	"url": "https://github.com/Saintapedia/NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -42,6 +42,7 @@
 				"modules/ext.NearMe.js"
 			],
 			"dependencies": [
+				"jquery",
 				"mediawiki.api",
 				"mediawiki.util",
 				"mediawiki.router"

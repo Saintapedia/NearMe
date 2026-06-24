@@ -135,8 +135,8 @@ class NearbyQueryService {
 		foreach ( $sources as $source ) {
 			try {
 				$rows = $this->querySource( $source, $lat, $lon, $radiusMeters, $limit );
-			} catch ( MWException $e ) {
-				wfLogWarning( 'NearMe: Cargo query failed for ' . $source['table'] . ': ' . $e->getMessage() );
+			} catch ( \Exception $e ) {
+				wfDebugLog( 'NearMe', 'Cargo query failed for ' . $source['table'] . ': ' . $e->getMessage() );
 				continue;
 			}
 			$merged = array_merge( $merged, $rows );
