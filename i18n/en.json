@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [ "Saintapedia contributors" ]
+	},
+	"nearme-desc": "Location-based page discovery using Cargo coordinate fields (NearbyPages-style).",
+	"nearme-title": "Nearby",
+	"nearme-info-heading": "Discover what's nearby",
+	"nearme-info-description": "Find Saintapedia pages near your current location or a set of coordinates.",
+	"nearme-show-button": "Show nearby pages",
+	"nearme-distance-km": "$1 km away",
+	"nearme-distance-m": "$1 m away",
+	"nearme-requirements": "JavaScript required",
+	"nearme-requirements-guidance": "Nearby requires JavaScript and geolocation support in your browser.",
+	"nearme-error": "Could not load nearby pages.",
+	"nearme-error-guidance": "Please try again, or enter coordinates manually in the URL: Special:Nearby#/coord/lat,lon",
+	"nearme-noresults": "No nearby pages found.",
+	"nearme-noresults-guidance": "Try increasing the search radius in LocalSettings.php ($wgNearMeDefaultRadius) or move to a different location.",
+	"nearme-location-unavailable": "Your location could not be determined.",
+	"nearme-permission-denied": "Location permission was denied. Enable location access in your browser to use this feature.",
+	"nearme-loading": "Searching nearby pages…",
+	"nearme-error-cargo-missing": "The Cargo extension must be installed and enabled before NearMe can run.",
+	"nearme-error-unknown-table": "Unknown Cargo table: $1",
+	"nearme-error-no-sources": "No Cargo tables are configured for NearMe. Set $wgNearMeTables in LocalSettings.php.",
+	"apihelp-cargonearby-summary": "Search Cargo tables for rows near a geographic coordinate.",
+	"apihelp-cargonearby-param-gscoord": "Latitude and longitude separated by a pipe (e.g. 40.44|-79.99).",
+	"apihelp-cargonearby-param-gsradius": "Search radius in meters.",
+	"apihelp-cargonearby-param-gslimit": "Maximum number of results.",
+	"apihelp-cargonearby-param-table": "Optional Cargo table name to restrict the search.",
+	"apihelp-cargonearby-example-1": "Find pages near downtown Pittsburgh."
+}

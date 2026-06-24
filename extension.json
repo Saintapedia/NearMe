@@ -1,0 +1,102 @@
+{
+	"name": "NearMe",
+	"version": "0.1.0",
+	"author": [ "Saintapedia contributors" ],
+	"url": "https://github.com/Saintapedia/NearMe",
+	"descriptionmsg": "nearme-desc",
+	"license-name": "MIT",
+	"type": "specialpage",
+	"requires": {
+		"MediaWiki": ">= 1.39.0",
+		"extensions": {
+			"Cargo": ">= 3.0.0"
+		}
+	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\NearMe\\": "includes/"
+	},
+	"MessagesDirs": {
+		"NearMe": [ "i18n" ]
+	},
+	"ExtensionMessagesFiles": {
+		"NearMeAliases": "NearMe.alias.php"
+	},
+	"SpecialPages": {
+		"Nearby": "MediaWiki\\Extension\\NearMe\\SpecialNearby"
+	},
+	"APIModules": {
+		"cargonearby": "MediaWiki\\Extension\\NearMe\\ApiCargoNearby"
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteExtPath": "NearMe"
+	},
+	"ResourceModules": {
+		"ext.NearMe.styles": {
+			"styles": [ "modules/ext.NearMe.css" ]
+		},
+		"ext.NearMe": {
+			"scripts": [
+				"modules/location-provider.js",
+				"modules/nearby-api.js",
+				"modules/ext.NearMe.js"
+			],
+			"dependencies": [
+				"mediawiki.api",
+				"mediawiki.util",
+				"mediawiki.router"
+			],
+			"messages": [
+				"nearme-title",
+				"nearme-info-heading",
+				"nearme-info-description",
+				"nearme-show-button",
+				"nearme-distance-km",
+				"nearme-distance-m",
+				"nearme-requirements",
+				"nearme-requirements-guidance",
+				"nearme-error",
+				"nearme-error-guidance",
+				"nearme-noresults",
+				"nearme-noresults-guidance",
+				"nearme-location-unavailable",
+				"nearme-permission-denied",
+				"nearme-loading"
+			],
+			"config": [
+				"NearMeDefaultRadius",
+				"NearMeDefaultLimit",
+				"NearMeTables"
+			]
+		}
+	},
+	"config": {
+		"NearMeDefaultRadius": {
+			"value": 10000,
+			"description": "Default search radius in meters (NearbyPages uses 10 km)."
+		},
+		"NearMeMaxRadius": {
+			"value": 50000,
+			"description": "Maximum allowed search radius in meters."
+		},
+		"NearMeDefaultLimit": {
+			"value": 50,
+			"description": "Default maximum number of results returned."
+		},
+		"NearMeMaxLimit": {
+			"value": 100,
+			"description": "Maximum allowed result count per request."
+		},
+		"NearMeTables": {
+			"value": [
+				{
+					"table": "Saints",
+					"coordField": "Coordinates",
+					"labelField": "Name"
+				}
+			],
+			"description": "Cargo tables to search. Each entry: table, coordField, optional labelField."
+		}
+	},
+	"manifest_version": 2
+}

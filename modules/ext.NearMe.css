@@ -1,0 +1,103 @@
+/**
+ * NearMe styles — Special:Nearby
+ */
+
+.nearme-app {
+	position: relative;
+	min-height: 70vh;
+	padding-bottom: 5rem;
+}
+
+.nearme-shell {
+	max-width: 42rem;
+	margin: 0 auto;
+}
+
+.nearme-hero {
+	text-align: center;
+	margin: 1.5rem 0 2rem;
+}
+
+.nearme-hero__heading {
+	font-size: 1.1em;
+	margin: 0 0 0.5rem;
+}
+
+.nearme-hero__description {
+	color: #54595d;
+	margin: 0;
+}
+
+.nearme-message {
+	margin: 1rem 0;
+	padding: 0.75rem 1rem;
+	border-radius: 2px;
+}
+
+.nearme-message--error {
+	background: #fee7e6;
+	border: 1px solid #d33;
+	color: #202122;
+}
+
+.nearme-message--loading {
+	background: #eaf3ff;
+	border: 1px solid #36c;
+	color: #202122;
+}
+
+.nearme-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.nearme-list__item {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 1rem;
+	padding: 0.85rem 0;
+	border-bottom: 1px solid #c8ccd1;
+}
+
+.nearme-list__link {
+	font-weight: bold;
+	flex: 1;
+}
+
+.nearme-list__distance {
+	color: #54595d;
+	font-size: 0.9em;
+	white-space: nowrap;
+}
+
+.nearme-footer {
+	position: sticky;
+	bottom: 0;
+	background: #fff;
+	border-top: 1px solid #c8ccd1;
+	padding: 0.75rem 0;
+	text-align: center;
+	z-index: 2;
+}
+
+.nearme-button {
+	font-size: 1em;
+	padding: 0.5rem 1.25rem;
+	border-radius: 2px;
+	cursor: pointer;
+	border: 1px solid #a2a9b1;
+	background: #f8f9fa;
+}
+
+.nearme-button--primary {
+	background: #36c;
+	border-color: #36c;
+	color: #fff;
+}
+
+.nearme-button--primary:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
