@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.1.3",
+	"version": "0.2.1",
 	"author": [ "Saintapedia contributors" ],
 	"url": "https://github.com/Saintapedia/NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -62,12 +62,25 @@
 				"nearme-noresults-guidance",
 				"nearme-location-unavailable",
 				"nearme-permission-denied",
-				"nearme-loading"
+				"nearme-loading",
+				"nearme-map-label"
 			],
 			"config": [
 				"NearMeDefaultRadius",
 				"NearMeDefaultLimit",
 				"NearMeTables"
+			]
+		},
+		"ext.NearMe.maps": {
+			"scripts": [
+				"modules/nearby-map.js"
+			],
+			"dependencies": [
+				"ext.maps.leaflet.library",
+				"ext.maps.leaflet.markercluster"
+			],
+			"messages": [
+				"nearme-map-you-are-here"
 			]
 		}
 	},

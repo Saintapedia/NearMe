@@ -14,48 +14,73 @@
 
 	/**
 	 * @param {HTMLElement} root
+	 * @param {OO.Router} router
 	 */
-	function NearMeApp( root ) {
+	function NearMeApp( root, router ) {
 		this.root = root;
+		this.router = router;
 		this.pages = [];
+		this.center = null;
 		this.error = null;
 		this.loading = false;
 		this.showButtonDisabled = false;
 		this.loadInFlight = null;
+		this.mapView = null;
 		this.render();
-		this.bindRoutes();
+		try {
+			this.bindRoutes();
+		} catch ( err ) {
+			this.error = mw.msg( 'nearme-error' ) + ' ' + mw.msg( 'nearme-error-guidance' );
+			if ( window.console && window.console.error ) {
+				window.console.error( 'NearMe bindRoutes failed:', err );
+			}
+			this.render();
+		}
 	}
 
 	NearMeApp.prototype.render = function () {
 		var self = this;
-		var html = '<div class="nearme-shell">';
+		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
+		var hasMap = this.pages.length > 0 && mapsEnabled;
+		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
+
+		if ( this.mapView ) {
+			this.mapView.destroy();
+			this.mapView = null;
+		}
+
+		var html = '<div class="' + shellClass + '">';
 
 		if ( this.error ) {
 			html += '<div class="nearme-message nearme-message--error">' +
-				mw.util.escapeHtml( this.error ) + '</div>';
+				mw.html.escape( this.error ) + '</div>';
 		}
 
 		if ( this.loading ) {
 			html += '<div class="nearme-message nearme-message--loading">' +
-				mw.util.escapeHtml( mw.msg( 'nearme-loading' ) ) + '</div>';
+				mw.html.escape( mw.msg( 'nearme-loading' ) ) + '</div>';
 		}
 
 		if ( this.pages.length === 0 && !this.loading && !this.error ) {
 			html += '<div class="nearme-hero">' +
-				'<h3 class="nearme-hero__heading">' + mw.util.escapeHtml( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
-				'<p class="nearme-hero__description">' + mw.util.escapeHtml( mw.msg( 'nearme-info-description' ) ) + '</p>' +
+				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
+				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
 				'</div>';
 		}
 
 		if ( this.pages.length > 0 ) {
+			if ( mapsEnabled ) {
+				html += '<div id="nearme-map" class="nearme-map" role="region" aria-label="' +
+					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
+			}
 			html += '<ol class="nearme-list">';
 			this.pages.forEach( function ( page ) {
 				html += '<li class="nearme-list__item">' +
-					'<a class="nearme-list__link" href="' + mw.util.escapeHtml( page.url ) + '">' +
-					mw.util.escapeHtml( page.title ) +
+					'<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
+					mw.html.escape( page.title ) +
 					'</a>';
 				if ( page.proximity ) {
-					html += '<span class="nearme-list__distance">' + mw.util.escapeHtml( page.proximity ) + '</span>';
+					html += '<span class="nearme-list__distance">' + mw.html.escape( page.proximity ) + '</span>';
 				}
 				html += '</li>';
 			} );
@@ -65,7 +90,7 @@
 		html += '<div class="nearme-footer">' +
 			'<button type="button" class="nearme-button nearme-button--primary" id="nearme-show-btn"' +
 			( this.showButtonDisabled ? ' disabled' : '' ) + '>' +
-			mw.util.escapeHtml( mw.msg( 'nearme-show-button' ) ) +
+			mw.html.escape( mw.msg( 'nearme-show-button' ) ) +
 			'</button></div>';
 
 		html += '</div>';
@@ -76,6 +101,37 @@
 			btn.addEventListener( 'click', function () {
 				self.showNearby();
 			} );
+		}
+
+		this.updateMap();
+	};
+
+	NearMeApp.prototype.updateMap = function () {
+		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
+			return;
+		}
+
+		var mapEl = this.root.querySelector( '#nearme-map' );
+		if ( !mapEl ) {
+			return;
+		}
+
+		var self = this;
+		function initMap() {
+			if ( !window.NearMeMap ) {
+				return;
+			}
+			if ( self.mapView ) {
+				self.mapView.destroy();
+			}
+			self.mapView = new window.NearMeMap( mapEl );
+			self.mapView.update( self.center, self.pages );
+		}
+
+		if ( window.NearMeMap ) {
+			initMap();
+		} else if ( mw.loader.getState( 'ext.NearMe.maps' ) !== null ) {
+			mw.loader.using( 'ext.NearMe.maps' ).then( initMap );
 		}
 	};
 
@@ -105,7 +161,7 @@
 
 		var coordPath = '/coord/' + lat + ',' + lon;
 		if ( location.hash.replace( /^#/, '' ) !== coordPath ) {
-			mw.router.navigateTo( null, {
+			this.router.navigateTo( null, {
 				path: '#' + coordPath,
 				useReplaceState: true
 			} );
@@ -114,6 +170,7 @@
 		nearbyApi.getPagesAtCoordinates( lat, lon ).then( function ( result ) {
 			self.loading = false;
 			self.loadInFlight = null;
+			self.center = { lat: lat, lon: lon };
 			if ( result.pages.length === 0 ) {
 				self.error = mw.msg( 'nearme-noresults' ) + ' ' + mw.msg( 'nearme-noresults-guidance' );
 				self.pages = [];
@@ -155,6 +212,7 @@
 
 	NearMeApp.prototype.clearResults = function () {
 		this.pages = [];
+		this.center = null;
 		this.error = null;
 		this.loading = false;
 		this.render();
@@ -164,7 +222,7 @@
 		var self = this;
 		var coordinateRegex = /^\/coord\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/;
 
-		mw.router.addRoute(
+		this.router.addRoute(
 			coordinateRegex,
 			function ( lat, lon ) {
 				self.loadPages( parseFloat( lat ), parseFloat( lon ) );
@@ -179,13 +237,26 @@
 			}
 		} );
 
-		mw.router.checkRoute();
+		this.router.checkRoute();
 	};
 
 	$( function () {
 		var root = document.getElementById( 'nearme-app' );
-		if ( root ) {
-			new NearMeApp( root );
+		if ( !root ) {
+			return;
 		}
+		var router;
+		try {
+			router = mw.loader.require( 'mediawiki.router' );
+		} catch ( err ) {
+			root.innerHTML = '<div class="nearme-shell"><div class="nearme-message nearme-message--error">' +
+				mw.html.escape( mw.msg( 'nearme-error' ) + ' ' + mw.msg( 'nearme-error-guidance' ) ) +
+				'</div></div>';
+			if ( window.console && window.console.error ) {
+				window.console.error( 'NearMe failed to load mediawiki.router:', err );
+			}
+			return;
+		}
+		new NearMeApp( root, router );
 	} );
 }() );

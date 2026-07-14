@@ -60,8 +60,8 @@
 	 */
 	function getPagesAtCoordinates( lat, lon, options ) {
 		options = options || {};
-		var radius = options.radius || mw.config.get( 'NearMeDefaultRadius', 10000 );
-		var limit = options.limit || mw.config.get( 'NearMeDefaultLimit', 50 );
+		var radius = options.radius || mw.config.get( 'wgNearMeDefaultRadius', 10000 );
+		var limit = options.limit || mw.config.get( 'wgNearMeDefaultLimit', 50 );
 
 		return api.get( {
 			action: 'cargonearby',
