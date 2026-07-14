@@ -13,6 +13,47 @@
 	margin: 0 auto;
 }
 
+.nearme-shell--with-map {
+	max-width: 56rem;
+}
+
+.nearme-map {
+	height: 320px;
+	margin: 0 0 1rem;
+	border: 1px solid #c8ccd1;
+	border-radius: 2px;
+	z-index: 0;
+}
+
+.nearme-map .leaflet-container {
+	height: 100%;
+	font: inherit;
+}
+
+.nearme-map__distance {
+	color: #54595d;
+	font-size: 0.9em;
+}
+
+/* Fallback cluster icons (Maps LeafletCluster uses inline styles) */
+.nearme-cluster-icon {
+	position: relative;
+	background: none;
+	border: none;
+}
+
+.nearme-cluster-icon__count {
+	position: absolute;
+	top: 0;
+	left: 0;
+	font-size: 11px;
+	font-weight: bold;
+	text-align: center;
+	line-height: 52px;
+	width: 53px;
+	pointer-events: none;
+}
+
 .nearme-hero {
 	text-align: center;
 	margin: 1.5rem 0 2rem;

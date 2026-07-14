@@ -28,7 +28,9 @@ class SpecialNearby extends SpecialPage {
 		$this->checkReadOnly();
 		$this->outputHeader();
 
-		if ( !ExtensionRegistry::getInstance()->isLoaded( 'Cargo' ) ) {
+		$registry = ExtensionRegistry::getInstance();
+
+		if ( !$registry->isLoaded( 'Cargo' ) ) {
 			$this->getOutput()->addWikiMsg( 'nearme-error-cargo-missing' );
 			return;
 		}
@@ -36,7 +38,13 @@ class SpecialNearby extends SpecialPage {
 		$out = $this->getOutput();
 		$out->setPageTitleMsg( $this->msg( 'nearme-title' ) );
 		$out->addModuleStyles( [ 'ext.NearMe.styles' ] );
-		$out->addModules( [ 'ext.NearMe' ] );
+
+		$modules = [ 'ext.NearMe' ];
+		if ( $registry->isLoaded( 'Maps' ) ) {
+			$modules[] = 'ext.NearMe.maps';
+			$out->addJsConfigVars( [ 'wgNearMeMapsEnabled' => true ] );
+		}
+		$out->addModules( $modules );
 
 		$html = Html::rawElement(
 			'noscript',
@@ -47,7 +55,40 @@ class SpecialNearby extends SpecialPage {
 			)
 		);
 
-		$html .= Html::rawElement( 'div', [ 'id' => 'nearme-app', 'class' => 'nearme-app' ], '' );
+		// Static shell for no-JS / View Source; ext.NearMe.js replaces on load.
+		$placeholder = Html::rawElement(
+			'div',
+			[ 'class' => 'nearme-shell' ],
+			Html::rawElement(
+				'div',
+				[ 'class' => 'nearme-hero' ],
+				Html::element(
+					'h3',
+					[ 'class' => 'nearme-hero__heading' ],
+					$this->msg( 'nearme-info-heading' )->text()
+				) .
+				Html::element(
+					'p',
+					[ 'class' => 'nearme-hero__description' ],
+					$this->msg( 'nearme-info-description' )->text()
+				)
+			) .
+			Html::rawElement(
+				'div',
+				[ 'class' => 'nearme-footer' ],
+				Html::element(
+					'button',
+					[
+						'type' => 'button',
+						'class' => 'nearme-button nearme-button--primary',
+						'id' => 'nearme-show-btn',
+					],
+					$this->msg( 'nearme-show-button' )->text()
+				)
+			)
+		);
+
+		$html .= Html::rawElement( 'div', [ 'id' => 'nearme-app', 'class' => 'nearme-app' ], $placeholder );
 
 		$out->addHTML( $html );
 	}
