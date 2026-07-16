@@ -11,6 +11,13 @@
 	var ERROR_TIMEOUT = 'timeout';
 	var ERROR_SERVICE_UNAVAILABLE = 'service-unavailable';
 
+	// W3C GeolocationPositionError.code values. Do not use error.PERMISSION_DENIED etc. in
+	// the getCurrentPosition error callback — those names live on the interface, not on the
+	// error instance, so they are undefined and every failure would hit the default branch.
+	var GEO_PERMISSION_DENIED = 1;
+	var GEO_POSITION_UNAVAILABLE = 2;
+	var GEO_TIMEOUT = 3;
+
 	/**
 	 * @return {jQuery.Promise}
 	 */
@@ -31,13 +38,13 @@
 			},
 			function ( error ) {
 				switch ( error.code ) {
-					case error.PERMISSION_DENIED:
+					case GEO_PERMISSION_DENIED:
 						deferred.reject( ERROR_PERMISSION_DENIED );
 						break;
-					case error.POSITION_UNAVAILABLE:
+					case GEO_POSITION_UNAVAILABLE:
 						deferred.reject( ERROR_POSITION_UNAVAILABLE );
 						break;
-					case error.TIMEOUT:
+					case GEO_TIMEOUT:
 						deferred.reject( ERROR_TIMEOUT );
 						break;
 					default:
@@ -45,6 +52,7 @@
 				}
 			},
 			{
+				// High accuracy can take several seconds; the UI shows nearme-locating meanwhile.
 				enableHighAccuracy: true,
 				timeout: 15000,
 				maximumAge: 60000

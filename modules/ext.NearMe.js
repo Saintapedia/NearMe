@@ -23,6 +23,8 @@
 		this.center = null;
 		this.error = null;
 		this.loading = false;
+		// locating: browser geolocation pending; loading: Cargo API pending
+		this.locating = false;
 		this.showButtonDisabled = false;
 		this.loadInFlight = null;
 		this.mapView = null;
@@ -56,12 +58,16 @@
 				mw.html.escape( this.error ) + '</div>';
 		}
 
-		if ( this.loading ) {
+		// Two-phase feedback: GPS can take up to 15s before the Cargo search begins.
+		if ( this.locating ) {
+			html += '<div class="nearme-message nearme-message--loading">' +
+				mw.html.escape( mw.msg( 'nearme-locating' ) ) + '</div>';
+		} else if ( this.loading ) {
 			html += '<div class="nearme-message nearme-message--loading">' +
 				mw.html.escape( mw.msg( 'nearme-loading' ) ) + '</div>';
 		}
 
-		if ( this.pages.length === 0 && !this.loading && !this.error ) {
+		if ( this.pages.length === 0 && !this.loading && !this.locating && !this.error ) {
 			html += '<div class="nearme-hero">' +
 				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
 				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
@@ -142,6 +148,7 @@
 		}
 		this.pages = [];
 		this.loading = false;
+		this.locating = false;
 		this.render();
 	};
 
@@ -156,6 +163,10 @@
 
 		this.error = null;
 		this.loading = true;
+		// Lock the button for any in-flight search — button clicks (showNearby) and
+		// hash-route loads (#/coord/…) alike. showNearby already guards re-clicks;
+		// this keeps the affordance consistent while Cargo is pending.
+		this.showButtonDisabled = true;
 		this.pages = [];
 		this.render();
 
@@ -170,6 +181,7 @@
 		nearbyApi.getPagesAtCoordinates( lat, lon ).then( function ( result ) {
 			self.loading = false;
 			self.loadInFlight = null;
+			self.showButtonDisabled = false;
 			self.center = { lat: lat, lon: lon };
 			if ( result.pages.length === 0 ) {
 				self.error = mw.msg( 'nearme-noresults' ) + ' ' + mw.msg( 'nearme-noresults-guidance' );
@@ -182,29 +194,43 @@
 		}, function () {
 			self.loading = false;
 			self.loadInFlight = null;
+			self.showButtonDisabled = false;
 			self.setError( 'nearme-error' );
 		} );
 	};
 
 	NearMeApp.prototype.showNearby = function () {
 		var self = this;
-		this.showButtonDisabled = false;
+
+		// Ignore re-clicks while a request is in flight (button is also disabled).
+		if ( this.locating || this.loading ) {
+			return;
+		}
+
+		this.locating = true;
+		this.showButtonDisabled = true;
 		this.error = null;
 		this.render();
 
 		locationProvider.getCurrentPosition().then( function ( coordinate ) {
+			self.locating = false;
+			// loadPages owns showButtonDisabled until the Cargo call finishes.
 			self.loadPages( coordinate.latitude, coordinate.longitude );
 		}, function ( code ) {
+			self.locating = false;
 			switch ( code ) {
 				case locationProvider.ERROR_PERMISSION_DENIED:
+					// Permanent until the user changes site permission in the browser.
 					self.showButtonDisabled = true;
 					self.setError( 'nearme-permission-denied' );
 					break;
 				case locationProvider.ERROR_POSITION_UNAVAILABLE:
 				case locationProvider.ERROR_TIMEOUT:
+					self.showButtonDisabled = false;
 					self.setError( 'nearme-location-unavailable' );
 					break;
 				default:
+					self.showButtonDisabled = false;
 					self.setError( 'nearme-error' );
 			}
 		} );
@@ -215,6 +241,7 @@
 		this.center = null;
 		this.error = null;
 		this.loading = false;
+		this.locating = false;
 		this.render();
 	};
 
