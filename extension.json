@@ -1,7 +1,7 @@
 {
 	"name": "NearMe",
 	"version": "0.2.2",
-	"author": [ "Saintapedia contributors" ],
+	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
 	"license-name": "MIT",

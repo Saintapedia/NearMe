@@ -3,8 +3,8 @@
 | type1           = specialpage
 | type2           = api
 | description     = Cargo-backed location discovery via Special:Nearby and action=cargonearby
-| author          = Saintapedia contributors
-| maintainer      = Saintapedia contributors
+| author          = [[User:PhotographerTom|Tom O'Neill]], Saintapedia contributors
+| maintainer      = [[User:PhotographerTom|Tom O'Neill]]
 | version         = 0.2.2
 | update          = 2026-07-16
 | mediawiki       = 1.39+

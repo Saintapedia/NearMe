@@ -1,6 +1,6 @@
 {
 	"@metadata": {
-		"authors": [ "Saintapedia contributors" ]
+		"authors": [ "Tom O'Neill", "Saintapedia contributors" ]
 	},
 	"nearme-desc": "Location-based page discovery using Cargo coordinate fields (NearbyPages-style).",
 	"nearme-title": "Nearby",
