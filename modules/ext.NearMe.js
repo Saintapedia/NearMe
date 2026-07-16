@@ -23,6 +23,7 @@
 		this.center = null;
 		this.error = null;
 		this.loading = false;
+		this.locating = false;
 		this.showButtonDisabled = false;
 		this.loadInFlight = null;
 		this.mapView = null;
@@ -56,12 +57,15 @@
 				mw.html.escape( this.error ) + '</div>';
 		}
 
-		if ( this.loading ) {
+		if ( this.locating ) {
+			html += '<div class="nearme-message nearme-message--loading">' +
+				mw.html.escape( mw.msg( 'nearme-locating' ) ) + '</div>';
+		} else if ( this.loading ) {
 			html += '<div class="nearme-message nearme-message--loading">' +
 				mw.html.escape( mw.msg( 'nearme-loading' ) ) + '</div>';
 		}
 
-		if ( this.pages.length === 0 && !this.loading && !this.error ) {
+		if ( this.pages.length === 0 && !this.loading && !this.locating && !this.error ) {
 			html += '<div class="nearme-hero">' +
 				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
 				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
@@ -142,6 +146,7 @@
 		}
 		this.pages = [];
 		this.loading = false;
+		this.locating = false;
 		this.render();
 	};
 
@@ -188,13 +193,22 @@
 
 	NearMeApp.prototype.showNearby = function () {
 		var self = this;
-		this.showButtonDisabled = false;
+
+		if ( this.locating || this.loading ) {
+			return;
+		}
+
+		this.locating = true;
+		this.showButtonDisabled = true;
 		this.error = null;
 		this.render();
 
 		locationProvider.getCurrentPosition().then( function ( coordinate ) {
+			self.locating = false;
+			self.showButtonDisabled = false;
 			self.loadPages( coordinate.latitude, coordinate.longitude );
 		}, function ( code ) {
+			self.locating = false;
 			switch ( code ) {
 				case locationProvider.ERROR_PERMISSION_DENIED:
 					self.showButtonDisabled = true;
@@ -202,9 +216,11 @@
 					break;
 				case locationProvider.ERROR_POSITION_UNAVAILABLE:
 				case locationProvider.ERROR_TIMEOUT:
+					self.showButtonDisabled = false;
 					self.setError( 'nearme-location-unavailable' );
 					break;
 				default:
+					self.showButtonDisabled = false;
 					self.setError( 'nearme-error' );
 			}
 		} );
@@ -215,6 +231,7 @@
 		this.center = null;
 		this.error = null;
 		this.loading = false;
+		this.locating = false;
 		this.render();
 	};
 

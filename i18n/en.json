@@ -19,6 +19,7 @@
 	"nearme-noresults-guidance": "Try increasing the search radius in LocalSettings.php ($wgNearMeDefaultRadius) or move to a different location.",
 	"nearme-location-unavailable": "Your location could not be determined.",
 	"nearme-permission-denied": "Location permission was denied. Enable location access in your browser to use this feature.",
+	"nearme-locating": "Getting your location…",
 	"nearme-loading": "Searching nearby pages…",
 	"nearme-error-cargo-missing": "The Cargo extension must be installed and enabled before NearMe can run.",
 	"nearme-error-unknown-table": "Unknown Cargo table: $1",

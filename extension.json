@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"author": [ "Saintapedia contributors" ],
 	"url": "https://github.com/Saintapedia/NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -62,6 +62,7 @@
 				"nearme-noresults-guidance",
 				"nearme-location-unavailable",
 				"nearme-permission-denied",
+				"nearme-locating",
 				"nearme-loading",
 				"nearme-map-label"
 			],
