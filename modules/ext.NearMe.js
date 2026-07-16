@@ -161,6 +161,7 @@
 
 		this.error = null;
 		this.loading = true;
+		this.showButtonDisabled = true;
 		this.pages = [];
 		this.render();
 
@@ -175,6 +176,7 @@
 		nearbyApi.getPagesAtCoordinates( lat, lon ).then( function ( result ) {
 			self.loading = false;
 			self.loadInFlight = null;
+			self.showButtonDisabled = false;
 			self.center = { lat: lat, lon: lon };
 			if ( result.pages.length === 0 ) {
 				self.error = mw.msg( 'nearme-noresults' ) + ' ' + mw.msg( 'nearme-noresults-guidance' );
@@ -187,6 +189,7 @@
 		}, function () {
 			self.loading = false;
 			self.loadInFlight = null;
+			self.showButtonDisabled = false;
 			self.setError( 'nearme-error' );
 		} );
 	};
@@ -205,7 +208,6 @@
 
 		locationProvider.getCurrentPosition().then( function ( coordinate ) {
 			self.locating = false;
-			self.showButtonDisabled = false;
 			self.loadPages( coordinate.latitude, coordinate.longitude );
 		}, function ( code ) {
 			self.locating = false;
