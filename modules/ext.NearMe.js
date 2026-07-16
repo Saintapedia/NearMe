@@ -163,7 +163,9 @@
 
 		this.error = null;
 		this.loading = true;
-		// Keep disabled through the full locate → search cycle (see showNearby).
+		// Lock the button for any in-flight search — button clicks (showNearby) and
+		// hash-route loads (#/coord/…) alike. showNearby already guards re-clicks;
+		// this keeps the affordance consistent while Cargo is pending.
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.render();
