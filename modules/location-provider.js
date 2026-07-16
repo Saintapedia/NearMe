@@ -11,7 +11,9 @@
 	var ERROR_TIMEOUT = 'timeout';
 	var ERROR_SERVICE_UNAVAILABLE = 'service-unavailable';
 
-	// GeolocationPositionError constants are on the interface, not error instances.
+	// W3C GeolocationPositionError.code values. Do not use error.PERMISSION_DENIED etc. in
+	// the getCurrentPosition error callback — those names live on the interface, not on the
+	// error instance, so they are undefined and every failure would hit the default branch.
 	var GEO_PERMISSION_DENIED = 1;
 	var GEO_POSITION_UNAVAILABLE = 2;
 	var GEO_TIMEOUT = 3;
@@ -50,6 +52,7 @@
 				}
 			},
 			{
+				// High accuracy can take several seconds; the UI shows nearme-locating meanwhile.
 				enableHighAccuracy: true,
 				timeout: 15000,
 				maximumAge: 60000

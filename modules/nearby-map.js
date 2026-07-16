@@ -21,7 +21,7 @@
 	}
 
 	NearMeMap.prototype.getTileLayer = function () {
-		var layerName = mw.config.get( 'wgNearMeMapsLeafletLayer', DEFAULT_LAYER );
+		var layerName = mw.config.get( 'egMapsLeafletLayer', DEFAULT_LAYER );
 		try {
 			return L.tileLayer.provider( layerName );
 		} catch ( err ) {
@@ -48,8 +48,8 @@
 			return L.layerGroup();
 		}
 
-		var imagePath = mw.config.get( 'wgExtensionAssetsPath', '/w/extensions' ) +
-			'/Maps/resources/leaflet/cluster/';
+		var imagePath = mw.config.get( 'egMapsScriptPath', '/w/extensions/Maps/' ) +
+			'resources/leaflet/cluster/';
 
 		return L.markerClusterGroup( {
 			showCoverageOnHover: false,

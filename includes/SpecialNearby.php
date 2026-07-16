@@ -42,10 +42,7 @@ class SpecialNearby extends SpecialPage {
 		$modules = [ 'ext.NearMe' ];
 		if ( $registry->isLoaded( 'Maps' ) ) {
 			$modules[] = 'ext.NearMe.maps';
-			$out->addJsConfigVars( [
-				'wgNearMeMapsEnabled' => true,
-				'wgNearMeMapsLeafletLayer' => $this->getConfig()->get( 'egMapsLeafletLayer' ),
-			] );
+			$out->addJsConfigVars( [ 'wgNearMeMapsEnabled' => true ] );
 		}
 		$out->addModules( $modules );
 

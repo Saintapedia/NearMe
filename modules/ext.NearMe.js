@@ -23,6 +23,7 @@
 		this.center = null;
 		this.error = null;
 		this.loading = false;
+		// locating: browser geolocation pending; loading: Cargo API pending
 		this.locating = false;
 		this.showButtonDisabled = false;
 		this.loadInFlight = null;
@@ -57,6 +58,7 @@
 				mw.html.escape( this.error ) + '</div>';
 		}
 
+		// Two-phase feedback: GPS can take up to 15s before the Cargo search begins.
 		if ( this.locating ) {
 			html += '<div class="nearme-message nearme-message--loading">' +
 				mw.html.escape( mw.msg( 'nearme-locating' ) ) + '</div>';
@@ -161,6 +163,7 @@
 
 		this.error = null;
 		this.loading = true;
+		// Keep disabled through the full locate → search cycle (see showNearby).
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.render();
@@ -197,6 +200,7 @@
 	NearMeApp.prototype.showNearby = function () {
 		var self = this;
 
+		// Ignore re-clicks while a request is in flight (button is also disabled).
 		if ( this.locating || this.loading ) {
 			return;
 		}
@@ -208,11 +212,13 @@
 
 		locationProvider.getCurrentPosition().then( function ( coordinate ) {
 			self.locating = false;
+			// loadPages owns showButtonDisabled until the Cargo call finishes.
 			self.loadPages( coordinate.latitude, coordinate.longitude );
 		}, function ( code ) {
 			self.locating = false;
 			switch ( code ) {
 				case locationProvider.ERROR_PERMISSION_DENIED:
+					// Permanent until the user changes site permission in the browser.
 					self.showButtonDisabled = true;
 					self.setError( 'nearme-permission-denied' );
 					break;
