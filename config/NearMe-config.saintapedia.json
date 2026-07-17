@@ -1,0 +1,25 @@
+{
+	"defaultRadius": 10000,
+	"defaultLimit": 50,
+	"sources": [
+		{
+			"table": "Parishes",
+			"coordField": "ParishLocation",
+			"label": "Parishes",
+			"labelField": "ShortName",
+			"default": true
+		}
+	],
+	"examples": [
+		{
+			"label": "Philadelphia, PA",
+			"lat": 39.9526,
+			"lon": -75.1652
+		},
+		{
+			"label": "Pittsburgh, PA",
+			"lat": 40.4406,
+			"lon": -79.9959
+		}
+	]
+}

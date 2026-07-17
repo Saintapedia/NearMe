@@ -1,0 +1,11 @@
+{
+	"defaultRadius": 10000,
+	"defaultLimit": 50,
+	"sources": [
+		{
+			"table": "Places",
+			"coordField": "Coordinates",
+			"label": "Places"
+		}
+	]
+}

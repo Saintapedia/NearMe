@@ -22,10 +22,17 @@ use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 class ApiCargoNearby extends ApiBase {
 
 	private NearbyQueryService $queryService;
+	private NearMeConfigService $configService;
 
-	public function __construct( ApiMain $main, string $action, ?NearbyQueryService $queryService = null ) {
+	public function __construct(
+		ApiMain $main,
+		string $action,
+		?NearbyQueryService $queryService = null,
+		?NearMeConfigService $configService = null
+	) {
 		parent::__construct( $main, $action );
 		$this->queryService = $queryService ?? new NearbyQueryService();
+		$this->configService = $configService ?? new NearMeConfigService();
 	}
 
 	/** @inheritDoc */
@@ -51,17 +58,17 @@ class ApiCargoNearby extends ApiBase {
 			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
 		}
 
-		$config = $this->getConfig();
-		$maxRadius = (int)$config->get( 'NearMeMaxRadius' );
-		$maxLimit = (int)$config->get( 'NearMeMaxLimit' );
+		$mainConfig = $this->getConfig();
+		$maxRadius = (int)$mainConfig->get( 'NearMeMaxRadius' );
+		$maxLimit = (int)$mainConfig->get( 'NearMeMaxLimit' );
 		$radius = min( (int)$params['gsradius'], $maxRadius );
 		$limit = min( (int)$params['gslimit'], $maxLimit );
 
 		/** @var array<int,array{table:string,coordField:string,labelField?:string}> $sources */
-		$sources = $config->get( 'NearMeTables' );
+		$sources = $this->configService->getSources( $this->getContext() );
 		$tableFilter = $params['table'] !== '' ? $params['table'] : null;
 
-		if ( $tableFilter !== null && !$this->queryService->isKnownCargoTable( $tableFilter ) ) {
+		if ( $tableFilter !== null && !$this->isConfiguredTable( $sources, $tableFilter ) ) {
 			$this->dieWithError( [ 'nearme-error-unknown-table', $tableFilter ], 'unknown-table' );
 		}
 
@@ -70,22 +77,28 @@ class ApiCargoNearby extends ApiBase {
 			$this->dieWithError( 'nearme-error-no-sources', 'no-sources' );
 		}
 
-		foreach ( $sources as $source ) {
-			if ( !$this->queryService->isKnownCargoTable( $source['table'] ) ) {
-				$this->dieWithError(
-					[ 'nearme-error-unknown-table', $source['table'] ],
-					'unknown-table'
-				);
-			}
-		}
-
 		$results = $this->queryService->queryAll( $sources, $lat, $lon, $radius, $limit );
 
 		$this->getResult()->addValue( null, $this->getModuleName(), $results );
 	}
 
+	/**
+	 * @param array<int,array{table:string,coordField:string,labelField?:string}> $sources
+	 */
+	private function isConfiguredTable( array $sources, string $table ): bool {
+		foreach ( $sources as $source ) {
+			if ( $source['table'] === $table ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
+		$nearMeConfig = $this->configService->getConfig( $this->getContext() );
+		$mainConfig = $this->getConfig();
+
 		return [
 			'gscoord' => [
 				self::PARAM_TYPE => 'string',
@@ -93,15 +106,15 @@ class ApiCargoNearby extends ApiBase {
 			],
 			'gsradius' => [
 				self::PARAM_TYPE => 'integer',
-				self::PARAM_DFLT => $this->getConfig()->get( 'NearMeDefaultRadius' ),
+				self::PARAM_DFLT => $nearMeConfig['defaultRadius'],
 				IntegerDef::PARAM_MIN => 100,
-				IntegerDef::PARAM_MAX => $this->getConfig()->get( 'NearMeMaxRadius' ),
+				IntegerDef::PARAM_MAX => $mainConfig->get( 'NearMeMaxRadius' ),
 			],
 			'gslimit' => [
 				self::PARAM_TYPE => 'integer',
-				self::PARAM_DFLT => $this->getConfig()->get( 'NearMeDefaultLimit' ),
+				self::PARAM_DFLT => $nearMeConfig['defaultLimit'],
 				IntegerDef::PARAM_MIN => 1,
-				IntegerDef::PARAM_MAX => $this->getConfig()->get( 'NearMeMaxLimit' ),
+				IntegerDef::PARAM_MAX => $mainConfig->get( 'NearMeMaxLimit' ),
 			],
 			'table' => [
 				self::PARAM_TYPE => 'string',

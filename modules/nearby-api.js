@@ -33,9 +33,10 @@
 
 	/**
 	 * @param {Object} row API result row
-	 * @return {Object}
+	 * @param {Object.<string,string>} [tableLabels]
+	 * @return {Object|null}
 	 */
-	function toCard( row ) {
+	function toCard( row, tableLabels ) {
 		var title = mw.Title.newFromText( row.title );
 		if ( !title ) {
 			return null;
@@ -48,7 +49,8 @@
 			geoURI: 'geo:' + row.lat + ',' + row.lon,
 			lat: row.lat,
 			lon: row.lon,
-			table: row.table
+			table: row.table,
+			tableLabel: ( tableLabels && row.table ) ? ( tableLabels[ row.table ] || row.table ) : row.table
 		};
 	}
 
@@ -60,20 +62,27 @@
 	 */
 	function getPagesAtCoordinates( lat, lon, options ) {
 		options = options || {};
-		var radius = options.radius || mw.config.get( 'wgNearMeDefaultRadius', 10000 );
-		var limit = options.limit || mw.config.get( 'wgNearMeDefaultLimit', 50 );
-
-		return api.get( {
+		var radius = options.radius || mw.config.get( 'NearMeDefaultRadius', 10000 );
+		var limit = options.limit || mw.config.get( 'NearMeDefaultLimit', 50 );
+		var request = {
 			action: 'cargonearby',
 			format: 'json',
 			gscoord: lat + '|' + lon,
 			gsradius: radius,
-			gslimit: limit,
-			table: options.table || undefined
-		} ).then( function ( data ) {
+			gslimit: limit
+		};
+
+		if ( options.table ) {
+			request.table = options.table;
+		}
+
+		return api.get( request ).then( function ( data ) {
 			var rows = ( data && data.cargonearby ) ? data.cargonearby : [];
+			var tableLabels = options.tableLabels || null;
 			return {
-				pages: rows.map( toCard ).filter( Boolean ),
+				pages: rows.map( function ( row ) {
+					return toCard( row, tableLabels );
+				} ).filter( Boolean ),
 				latitude: lat,
 				longitude: lon
 			};

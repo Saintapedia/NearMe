@@ -3,6 +3,7 @@
  *
  * Hash routes (NearbyPages-compatible):
  *   #/coord/lat,lon
+ *   #/coord/lat,lon/table/TableName
  *
  * @module ext.NearMe
  */
@@ -13,21 +14,79 @@
 	var nearbyApi = window.NearMeApi;
 
 	/**
+	 * @return {Array.<Object>}
+	 */
+	function getSources() {
+		return mw.config.get( 'NearMeTables', [] );
+	}
+
+	/**
+	 * @return {Array.<{label:string,lat:number,lon:number}>}
+	 */
+	function getExamples() {
+		return mw.config.get( 'NearMeExamples', [] );
+	}
+
+	/**
+	 * @param {Array.<Object>} sources
+	 * @return {Object.<string,string>}
+	 */
+	function buildTableLabels( sources ) {
+		var labels = {};
+		sources.forEach( function ( source ) {
+			labels[ source.table ] = source.label || source.table;
+		} );
+		return labels;
+	}
+
+	/**
+	 * @param {Array.<Object>} sources
+	 * @param {string|null} selectedTable
+	 * @return {string}
+	 */
+	function getButtonLabel( sources, selectedTable ) {
+		if ( selectedTable ) {
+			var match = sources.filter( function ( s ) {
+				return s.table === selectedTable;
+			} )[ 0 ];
+			if ( match ) {
+				return mw.msg( 'nearme-show-button-table', match.label || match.table );
+			}
+		}
+
+		if ( sources.length === 1 ) {
+			return mw.msg( 'nearme-show-button-table', sources[ 0 ].label || sources[ 0 ].table );
+		}
+
+		var defaultSource = sources.filter( function ( s ) {
+			return s.default;
+		} )[ 0 ];
+		if ( defaultSource ) {
+			return mw.msg( 'nearme-show-button-table', defaultSource.label || defaultSource.table );
+		}
+
+		return mw.msg( 'nearme-show-button' );
+	}
+
+	/**
 	 * @param {HTMLElement} root
 	 * @param {OO.Router} router
 	 */
 	function NearMeApp( root, router ) {
 		this.root = root;
 		this.router = router;
+		this.sources = getSources();
+		this.tableLabels = buildTableLabels( this.sources );
+		this.selectedTable = this.getInitialTable();
 		this.pages = [];
 		this.center = null;
 		this.error = null;
 		this.loading = false;
-		// locating: browser geolocation pending; loading: Cargo API pending
 		this.locating = false;
 		this.showButtonDisabled = false;
 		this.loadInFlight = null;
 		this.mapView = null;
+		this.mapCollapsed = false;
 		this.render();
 		try {
 			this.bindRoutes();
@@ -40,11 +99,124 @@
 		}
 	}
 
+	/**
+	 * @return {string|null}
+	 */
+	NearMeApp.prototype.getInitialTable = function () {
+		if ( this.sources.length <= 1 ) {
+			return this.sources.length === 1 ? this.sources[ 0 ].table : null;
+		}
+
+		var defaultSource = this.sources.filter( function ( s ) {
+			return s.default;
+		} )[ 0 ];
+		return defaultSource ? defaultSource.table : null;
+	};
+
+	/**
+	 * @return {boolean}
+	 */
+	NearMeApp.prototype.showTablePicker = function () {
+		return this.sources.length > 1;
+	};
+
+	/**
+	 * @return {boolean}
+	 */
+	NearMeApp.prototype.showTableBadges = function () {
+		return this.sources.length > 1 && !this.selectedTable;
+	};
+
+	NearMeApp.prototype.renderExamples = function () {
+		var examples = getExamples();
+		if ( examples.length === 0 ) {
+			return '';
+		}
+
+		var html = '<p class="nearme-examples"><span class="nearme-examples__label">' +
+			mw.html.escape( mw.msg( 'nearme-try-without-gps' ) ) + '</span> ';
+		examples.forEach( function ( example, index ) {
+			if ( index > 0 ) {
+				html += '<span class="nearme-examples__sep" aria-hidden="true">·</span>';
+			}
+			html += '<a class="nearme-examples__link" href="#/coord/' +
+				example.lat + ',' + example.lon + '">' +
+				mw.html.escape( example.label ) + '</a>';
+		} );
+		html += '</p>';
+		return html;
+	};
+
+	NearMeApp.prototype.bindExamples = function () {
+		var self = this;
+		var links = this.root.querySelectorAll( '.nearme-examples__link' );
+		links.forEach( function ( link ) {
+			link.addEventListener( 'click', function ( event ) {
+				event.preventDefault();
+				var match = link.getAttribute( 'href' ).match( /^#\/coord\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/ );
+				if ( match ) {
+					self.loadPages( parseFloat( match[ 1 ] ), parseFloat( match[ 2 ] ) );
+				}
+			} );
+		} );
+	};
+
+	NearMeApp.prototype.renderTablePicker = function () {
+		var self = this;
+		if ( !this.showTablePicker() ) {
+			return '';
+		}
+
+		var html = '<div class="nearme-table-picker" role="tablist" aria-label="' +
+			mw.html.escape( mw.msg( 'nearme-filter-all' ) ) + '">';
+
+		html += '<button type="button" class="nearme-table-picker__btn' +
+			( !this.selectedTable ? ' nearme-table-picker__btn--active' : '' ) +
+			'" data-table="" role="tab" aria-selected="' + ( !this.selectedTable ? 'true' : 'false' ) + '">' +
+			mw.html.escape( mw.msg( 'nearme-filter-all' ) ) + '</button>';
+
+		this.sources.forEach( function ( source ) {
+			var active = self.selectedTable === source.table;
+			html += '<button type="button" class="nearme-table-picker__btn' +
+				( active ? ' nearme-table-picker__btn--active' : '' ) +
+				'" data-table="' + mw.html.escape( source.table ) + '" role="tab" aria-selected="' +
+				( active ? 'true' : 'false' ) + '">' +
+				mw.html.escape( source.label || source.table ) + '</button>';
+		} );
+
+		html += '</div>';
+		return html;
+	};
+
+	NearMeApp.prototype.bindTablePicker = function () {
+		var self = this;
+		var buttons = this.root.querySelectorAll( '.nearme-table-picker__btn' );
+		buttons.forEach( function ( btn ) {
+			btn.addEventListener( 'click', function () {
+				var table = btn.getAttribute( 'data-table' ) || null;
+				self.setSelectedTable( table );
+			} );
+		} );
+	};
+
+	/**
+	 * @param {string|null} table
+	 */
+	NearMeApp.prototype.setSelectedTable = function ( table ) {
+		this.selectedTable = table || null;
+		this.render();
+
+		if ( this.center ) {
+			this.loadPages( this.center.lat, this.center.lon );
+		}
+	};
+
 	NearMeApp.prototype.render = function () {
 		var self = this;
 		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
 		var hasMap = this.pages.length > 0 && mapsEnabled;
 		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
+		var showHero = this.pages.length === 0 && !this.loading && !this.locating && !this.error;
 
 		if ( this.mapView ) {
 			this.mapView.destroy();
@@ -53,12 +225,13 @@
 
 		var html = '<div class="' + shellClass + '">';
 
+		html += this.renderTablePicker();
+
 		if ( this.error ) {
 			html += '<div class="nearme-message nearme-message--error">' +
 				mw.html.escape( this.error ) + '</div>';
 		}
 
-		// Two-phase feedback: GPS can take up to 15s before the Cargo search begins.
 		if ( this.locating ) {
 			html += '<div class="nearme-message nearme-message--loading">' +
 				mw.html.escape( mw.msg( 'nearme-locating' ) ) + '</div>';
@@ -67,22 +240,33 @@
 				mw.html.escape( mw.msg( 'nearme-loading' ) ) + '</div>';
 		}
 
-		if ( this.pages.length === 0 && !this.loading && !this.locating && !this.error ) {
+		if ( showHero ) {
 			html += '<div class="nearme-hero">' +
 				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
 				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
+				this.renderExamples() +
 				'</div>';
 		}
 
 		if ( this.pages.length > 0 ) {
 			if ( mapsEnabled ) {
+				html += '<div class="nearme-map-wrap' + ( this.mapCollapsed ? ' nearme-map-wrap--collapsed' : '' ) + '">';
+				html += '<button type="button" class="nearme-map-toggle" aria-expanded="' +
+					( this.mapCollapsed ? 'false' : 'true' ) + '">' +
+					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '</button>';
 				html += '<div id="nearme-map" class="nearme-map" role="region" aria-label="' +
 					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
+				html += '</div>';
 			}
 			html += '<ol class="nearme-list">';
 			this.pages.forEach( function ( page ) {
-				html += '<li class="nearme-list__item">' +
-					'<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
+				var showBadge = self.showTableBadges() && page.tableLabel;
+				html += '<li class="nearme-list__item' +
+					( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
+				if ( showBadge ) {
+					html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
+				}
+				html += '<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
 					mw.html.escape( page.title ) +
 					'</a>';
 				if ( page.proximity ) {
@@ -93,10 +277,15 @@
 			html += '</ol>';
 		}
 
+		if ( showHero ) {
+			html += '<p class="nearme-privacy-hint">' +
+				mw.html.escape( mw.msg( 'nearme-privacy-hint' ) ) + '</p>';
+		}
+
 		html += '<div class="nearme-footer">' +
 			'<button type="button" class="nearme-button nearme-button--primary" id="nearme-show-btn"' +
 			( this.showButtonDisabled ? ' disabled' : '' ) + '>' +
-			mw.html.escape( mw.msg( 'nearme-show-button' ) ) +
+			mw.html.escape( getButtonLabel( this.sources, this.selectedTable ) ) +
 			'</button></div>';
 
 		html += '</div>';
@@ -109,11 +298,25 @@
 			} );
 		}
 
+		var mapToggle = this.root.querySelector( '.nearme-map-toggle' );
+		if ( mapToggle ) {
+			mapToggle.addEventListener( 'click', function () {
+				self.mapCollapsed = !self.mapCollapsed;
+				self.render();
+			} );
+		}
+
+		this.bindTablePicker();
+		this.bindExamples();
 		this.updateMap();
 	};
 
 	NearMeApp.prototype.updateMap = function () {
 		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
+			return;
+		}
+
+		if ( this.mapCollapsed ) {
 			return;
 		}
 
@@ -152,9 +355,15 @@
 		this.render();
 	};
 
-	NearMeApp.prototype.loadPages = function ( lat, lon ) {
+	/**
+	 * @param {number} lat
+	 * @param {number} lon
+	 * @param {string|null} [table]
+	 */
+	NearMeApp.prototype.loadPages = function ( lat, lon, table ) {
 		var self = this;
-		var coordKey = lat + ',' + lon;
+		var activeTable = ( table !== undefined ) ? table : this.selectedTable;
+		var coordKey = lat + ',' + lon + ':' + ( activeTable || '' );
 
 		if ( this.loadInFlight === coordKey ) {
 			return;
@@ -163,14 +372,14 @@
 
 		this.error = null;
 		this.loading = true;
-		// Lock the button for any in-flight search — button clicks (showNearby) and
-		// hash-route loads (#/coord/…) alike. showNearby already guards re-clicks;
-		// this keeps the affordance consistent while Cargo is pending.
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
+		if ( activeTable ) {
+			coordPath += '/table/' + encodeURIComponent( activeTable );
+		}
 		if ( location.hash.replace( /^#/, '' ) !== coordPath ) {
 			this.router.navigateTo( null, {
 				path: '#' + coordPath,
@@ -178,7 +387,10 @@
 			} );
 		}
 
-		nearbyApi.getPagesAtCoordinates( lat, lon ).then( function ( result ) {
+		nearbyApi.getPagesAtCoordinates( lat, lon, {
+			table: activeTable || undefined,
+			tableLabels: this.tableLabels
+		} ).then( function ( result ) {
 			self.loading = false;
 			self.loadInFlight = null;
 			self.showButtonDisabled = false;
@@ -202,7 +414,6 @@
 	NearMeApp.prototype.showNearby = function () {
 		var self = this;
 
-		// Ignore re-clicks while a request is in flight (button is also disabled).
 		if ( this.locating || this.loading ) {
 			return;
 		}
@@ -214,13 +425,11 @@
 
 		locationProvider.getCurrentPosition().then( function ( coordinate ) {
 			self.locating = false;
-			// loadPages owns showButtonDisabled until the Cargo call finishes.
 			self.loadPages( coordinate.latitude, coordinate.longitude );
 		}, function ( code ) {
 			self.locating = false;
 			switch ( code ) {
 				case locationProvider.ERROR_PERMISSION_DENIED:
-					// Permanent until the user changes site permission in the browser.
 					self.showButtonDisabled = true;
 					self.setError( 'nearme-permission-denied' );
 					break;
@@ -247,16 +456,18 @@
 
 	NearMeApp.prototype.bindRoutes = function () {
 		var self = this;
-		var coordinateRegex = /^\/coord\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/;
+		var coordinateRegex = /^\/coord\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:\/table\/([^/]+))?/;
 
 		this.router.addRoute(
 			coordinateRegex,
-			function ( lat, lon ) {
-				self.loadPages( parseFloat( lat ), parseFloat( lon ) );
+			function ( lat, lon, table ) {
+				if ( table ) {
+					self.selectedTable = decodeURIComponent( table );
+				}
+				self.loadPages( parseFloat( lat ), parseFloat( lon ), self.selectedTable );
 			}
 		);
 
-		// MW 1.39 router has no documented exit callback; clear stale results on hash change.
 		window.addEventListener( 'hashchange', function () {
 			var path = location.hash.replace( /^#/, '' );
 			if ( !coordinateRegex.test( path ) ) {

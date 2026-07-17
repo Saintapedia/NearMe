@@ -9,5 +9,5 @@ $specialPageAliases = [];
 
 /** English (English) */
 $specialPageAliases['en'] = [
-	'Nearby' => [ 'Nearby', 'NearMe' ],
+	'Nearby' => [ 'Nearby' ],
 ];
