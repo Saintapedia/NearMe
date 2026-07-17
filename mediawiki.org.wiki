@@ -22,7 +22,7 @@
 * $wgNearMeDefaultLimit
 * $wgNearMeMaxLimit
 }}
-The '''NearMe''' extension provides '''Special:Nearby''' for finding wiki pages near a geographic coordinate, using [Extension:Cargo]({{ll|Extension:Cargo}}) {{ll|Extension:Cargo/Data_types#Coordinates|Coordinates}} fields and Cargo's <code>NEAR</code> SQL query. It exposes <code>action=cargonearby</code> for the same search from JavaScript or external tools.
+The '''NearMe''' extension provides '''Special:Nearby''' for finding wiki pages near a geographic coordinate, using {{ll|Extension:Cargo}} {{ll|Extension:Cargo/Data_types#Coordinates|Coordinates}} fields and Cargo's <code>NEAR</code> SQL query. It exposes <code>action=cargonearby</code> for the same search from JavaScript or external tools.
 
 NearMe is a Cargo-native alternative to {{ll|Extension:NearbyPages|NearbyPages}}, which depends on {{ll|Extension:GeoData|GeoData}}. Do not enable both NearMe and NearbyPages if they register the same special page name.
 
