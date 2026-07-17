@@ -6,6 +6,7 @@
 	"nearme-show-button": "Label for the button that requests geolocation and loads nearby results.",
 	"nearme-show-button-table": "Label when a specific Cargo source is selected. Parameters:\n* $1 - display label for the table",
 	"nearme-filter-all": "Label for the table picker option that searches all configured Cargo tables.",
+	"nearme-filter-label": "Accessible label for the table picker tablist.",
 	"nearme-privacy-hint": "Short privacy note shown before the first search.",
 	"nearme-try-without-gps": "Label before example location link(s) in the hero area.",
 	"nearme-map-label": "Accessible label for the results map region.",

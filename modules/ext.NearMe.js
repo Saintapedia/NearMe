@@ -168,7 +168,7 @@
 		}
 
 		var html = '<div class="nearme-table-picker" role="tablist" aria-label="' +
-			mw.html.escape( mw.msg( 'nearme-filter-all' ) ) + '">';
+			mw.html.escape( mw.msg( 'nearme-filter-label' ) ) + '">';
 
 		html += '<button type="button" class="nearme-table-picker__btn' +
 			( !this.selectedTable ? ' nearme-table-picker__btn--active' : '' ) +
@@ -204,10 +204,11 @@
 	 */
 	NearMeApp.prototype.setSelectedTable = function ( table ) {
 		this.selectedTable = table || null;
-		this.render();
 
 		if ( this.center ) {
 			this.loadPages( this.center.lat, this.center.lon );
+		} else {
+			this.render();
 		}
 	};
 

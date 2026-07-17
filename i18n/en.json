@@ -9,6 +9,7 @@
 	"nearme-show-button": "Show nearby pages",
 	"nearme-show-button-table": "Show nearby $1",
 	"nearme-filter-all": "All",
+	"nearme-filter-label": "Filter by Cargo table",
 	"nearme-privacy-hint": "Uses your location once to search; coordinates are not stored on the wiki.",
 	"nearme-try-without-gps": "Try without GPS:",
 	"nearme-map-label": "Map of nearby results",

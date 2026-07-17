@@ -5,8 +5,8 @@
 | description     = Cargo-backed location discovery via Special:Nearby and action=cargonearby
 | author          = [[User:PhotographerTom|Tom O'Neill]], Saintapedia contributors
 | maintainer      = [[User:PhotographerTom|Tom O'Neill]]
-| version         = 0.2.2
-| update          = 2026-07-16
+| version         = 0.2.5
+| update          = 2026-07-17
 | mediawiki       = 1.39+
 | php             = 8.1+
 | needs-updatephp = No
@@ -15,6 +15,8 @@
 | readme          = [https://github.com/Saintapedia/NearMe/blob/main/README.md README]
 | parameters      = <nowiki/>
 * $wgNearMeTables
+* $wgNearMeConfigPage
+* $wgNearMeIntroPage
 * $wgNearMeDefaultRadius
 * $wgNearMeMaxRadius
 * $wgNearMeDefaultLimit
@@ -34,7 +36,9 @@ The special page requests the user's location (with permission), or accepts manu
 https://example.org/wiki/Special:Nearby#/coord/40.4406,-79.9959
 </syntaxhighlight>
 
-Results are distance-sorted pages from the configured Cargo tables.
+Results are distance-sorted pages from the configured Cargo tables. Optional example links (configured in <code>MediaWiki:NearMe-config</code>) let users try a fixed location without GPS.
+
+<code>Special:NearMe</code> is a deprecated alias for the same page (bookmarks only).
 
 == Installation ==
 
@@ -43,7 +47,7 @@ Results are distance-sorted pages from the configured Cargo tables.
 |registration=required
 |custom-steps=* Install and enable {{ll|Extension:Cargo|Cargo}} first.
 * Cargo tables must include at least one field of type Coordinates.
-* Configure <code>$wgNearMeTables</code> (see Configuration).
+* Create <code>MediaWiki:NearMe-config</code> (preferred) or set <code>$wgNearMeTables</code> in LocalSettings.php.
 }}
 
 Clone from GitHub:
@@ -58,22 +62,47 @@ Add to <code>LocalSettings.php</code> '''after''' Cargo:
 <syntaxhighlight lang="php">
 wfLoadExtension( 'Cargo' );
 wfLoadExtension( 'NearMe' );
-
-$wgNearMeTables = [
-	[
-		'table' => 'Parishes',
-		'coordField' => 'ParishLocation',
-		'labelField' => 'ShortName',
-	],
-];
 </syntaxhighlight>
 
 Optional: install {{ll|Extension:Maps|Maps}} for the Leaflet results map (<code>ext.NearMe.maps</code> module).
 
 == Configuration ==
 
+=== MediaWiki:NearMe-config (preferred) ===
+
+Create a JSON page at <code>MediaWiki:NearMe-config</code> (wrap in <code>&lt;pre&gt;</code> if you like). Each Cargo source needs <code>table</code>, <code>coordField</code>, and <code>label</code> (friendly name for tabs and the search button). Optional per source: <code>labelField</code> (row display; defaults to wiki page title), <code>default</code> (pre-selected tab).
+
+<syntaxhighlight lang="json">
+{
+  "defaultRadius": 10000,
+  "defaultLimit": 50,
+  "sources": [
+    {
+      "table": "Places",
+      "coordField": "Coordinates",
+      "label": "Places"
+    }
+  ],
+  "examples": [
+    {
+      "label": "Philadelphia, PA",
+      "lat": 39.9526,
+      "lon": -75.1652
+    }
+  ]
+}
+</syntaxhighlight>
+
+When this page exists, it takes precedence over <code>$wgNearMeTables</code>.
+
+=== LocalSettings.php ===
+
 ; <code>$wgNearMeTables</code>
-: Array of Cargo tables to search. Each entry needs <code>table</code> and <code>coordField</code>; <code>labelField</code> is optional.
+: Fallback array of Cargo sources when <code>MediaWiki:NearMe-config</code> is absent. Each entry needs <code>table</code>, <code>coordField</code>, and <code>label</code>; <code>labelField</code> is optional.
+; <code>$wgNearMeConfigPage</code>
+: MediaWiki page name for JSON config. Default: <code>NearMe-config</code>. Set to empty string to disable wiki config.
+; <code>$wgNearMeIntroPage</code>
+: Optional MediaWiki page with wikitext above the app. Default: empty (no intro).
 ; <code>$wgNearMeDefaultRadius</code>
 : Default search radius in metres. Default: <code>10000</code> (10 km).
 ; <code>$wgNearMeMaxRadius</code>

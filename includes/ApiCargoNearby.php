@@ -24,6 +24,9 @@ class ApiCargoNearby extends ApiBase {
 	private NearbyQueryService $queryService;
 	private NearMeConfigService $configService;
 
+	/** @var array<string,mixed>|null */
+	private ?array $resolvedNearMeConfig = null;
+
 	public function __construct(
 		ApiMain $main,
 		string $action,
@@ -64,8 +67,9 @@ class ApiCargoNearby extends ApiBase {
 		$radius = min( (int)$params['gsradius'], $maxRadius );
 		$limit = min( (int)$params['gslimit'], $maxLimit );
 
+		$nearMeConfig = $this->getResolvedNearMeConfig();
 		/** @var array<int,array{table:string,coordField:string,labelField?:string}> $sources */
-		$sources = $this->configService->getSources( $this->getContext() );
+		$sources = $nearMeConfig['sources'];
 		$tableFilter = $params['table'] !== '' ? $params['table'] : null;
 
 		if ( $tableFilter !== null && !$this->isConfiguredTable( $sources, $tableFilter ) ) {
@@ -96,7 +100,7 @@ class ApiCargoNearby extends ApiBase {
 
 	/** @inheritDoc */
 	public function getAllowedParams(): array {
-		$nearMeConfig = $this->configService->getConfig( $this->getContext() );
+		$nearMeConfig = $this->getResolvedNearMeConfig();
 		$mainConfig = $this->getConfig();
 
 		return [
@@ -134,5 +138,20 @@ class ApiCargoNearby extends ApiBase {
 	/** @inheritDoc */
 	public function isReadMode(): bool {
 		return true;
+	}
+
+	/**
+	 * @return array{
+	 *   defaultRadius:int,
+	 *   defaultLimit:int,
+	 *   sources:array<int,array<string,mixed>>,
+	 *   examples:array<int,array<string,mixed>>
+	 * }
+	 */
+	private function getResolvedNearMeConfig(): array {
+		if ( $this->resolvedNearMeConfig === null ) {
+			$this->resolvedNearMeConfig = $this->configService->getConfig( $this->getContext() );
+		}
+		return $this->resolvedNearMeConfig;
 	}
 }

@@ -18,14 +18,16 @@ use IContextSource;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 
-
 /**
  * Resolves NearMe table sources and defaults for Special:Nearby and the API.
  */
 class NearMeConfigService {
 
-	private const CACHE_VERSION = 3;
+	private const CACHE_VERSION = 4;
 	private const CACHE_TTL = 300;
+
+	/** @var array<int,array<string,mixed>>|null */
+	private ?array $resolvedConfig = null;
 
 	/**
 	 * @param IContextSource $context
@@ -43,38 +45,46 @@ class NearMeConfigService {
 	 * }
 	 */
 	public function getConfig( IContextSource $context ): array {
-		$wikiConfig = $this->getWikiConfig( $context );
+		if ( $this->resolvedConfig !== null ) {
+			return $this->resolvedConfig;
+		}
+
+		$wikiOverlay = $this->getResolvedWikiOverlay( $context );
 		$mainConfig = $context->getConfig();
 
 		$defaultRadius = (int)$mainConfig->get( 'NearMeDefaultRadius' );
 		$defaultLimit = (int)$mainConfig->get( 'NearMeDefaultLimit' );
 
-		if ( $wikiConfig !== null ) {
-			if ( isset( $wikiConfig['defaultRadius'] ) ) {
-				$defaultRadius = (int)$wikiConfig['defaultRadius'];
+		if ( $wikiOverlay !== null ) {
+			if ( isset( $wikiOverlay['defaultRadius'] ) ) {
+				$defaultRadius = (int)$wikiOverlay['defaultRadius'];
 			}
-			if ( isset( $wikiConfig['defaultLimit'] ) ) {
-				$defaultLimit = (int)$wikiConfig['defaultLimit'];
+			if ( isset( $wikiOverlay['defaultLimit'] ) ) {
+				$defaultLimit = (int)$wikiOverlay['defaultLimit'];
 			}
 		}
 
-		$wikiSources = ( $wikiConfig !== null ) ? ( $wikiConfig['sources'] ?? null ) : null;
+		$wikiSources = ( $wikiOverlay !== null ) ? $wikiOverlay['sources'] : null;
 		$sources = $this->normalizeSources(
 			$wikiSources,
 			$mainConfig->get( 'NearMeTables' )
 		);
 
-		$examples = [];
-		if ( $wikiConfig !== null && isset( $wikiConfig['examples'] ) ) {
-			$examples = $this->normalizeExamples( $wikiConfig['examples'] );
+		$examples = ( $wikiOverlay !== null ) ? $wikiOverlay['examples'] : [];
+
+		// Filter only when using LocalSettings fallback (wiki overlay is pre-filtered).
+		if ( $wikiOverlay === null ) {
+			$sources = $this->filterValidSources( $sources );
 		}
 
-		return [
+		$this->resolvedConfig = [
 			'defaultRadius' => $defaultRadius,
 			'defaultLimit' => $defaultLimit,
-			'sources' => $this->filterValidSources( $sources ),
+			'sources' => $sources,
 			'examples' => $examples,
 		];
+
+		return $this->resolvedConfig;
 	}
 
 	/**
@@ -86,10 +96,17 @@ class NearMeConfigService {
 	}
 
 	/**
+	 * Parsed, normalized, and Cargo-validated overlay from MediaWiki:NearMe-config.
+	 *
 	 * @param IContextSource $context
-	 * @return array<string,mixed>|null
+	 * @return array{
+	 *   defaultRadius?:int,
+	 *   defaultLimit?:int,
+	 *   sources:array<int,array{table:string,coordField:string,labelField?:string,label?:string,default?:bool}>,
+	 *   examples:array<int,array{label:string,lat:float,lon:float}>
+	 * }|null
 	 */
-	private function getWikiConfig( IContextSource $context ): ?array {
+	private function getResolvedWikiOverlay( IContextSource $context ): ?array {
 		$pageName = (string)$context->getConfig()->get( 'NearMeConfigPage' );
 		if ( $pageName === '' ) {
 			return null;
@@ -102,12 +119,13 @@ class NearMeConfigService {
 
 		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 		$key = $cache->makeKey(
-			'nearme-config',
+			'nearme-wiki-overlay',
 			self::CACHE_VERSION,
 			$title->getLatestRevID()
 		);
 
-		return $cache->getWithSetCallback(
+		/** @var array<string,mixed>|null $overlay */
+		$overlay = $cache->getWithSetCallback(
 			$key,
 			self::CACHE_TTL,
 			function () use ( $title ) {
@@ -117,14 +135,41 @@ class NearMeConfigService {
 					return null;
 				}
 
-				return $this->parseJsonConfig( $content->getText() );
+				$raw = $this->parseJsonConfig( $content->getText() );
+				if ( $raw === null ) {
+					return null;
+				}
+
+				$sources = $this->normalizeSourceList( $raw['sources'] ?? [] );
+				$sources = $this->filterValidSources( $sources );
+
+				$resolved = [
+					'sources' => $sources,
+					'examples' => $this->normalizeExamples( $raw['examples'] ?? [] ),
+				];
+
+				if ( isset( $raw['defaultRadius'] ) ) {
+					$resolved['defaultRadius'] = (int)$raw['defaultRadius'];
+				}
+				if ( isset( $raw['defaultLimit'] ) ) {
+					$resolved['defaultLimit'] = (int)$raw['defaultLimit'];
+				}
+
+				return $resolved;
 			}
 		);
+
+		if ( !is_array( $overlay ) || $overlay === [] ) {
+			return null;
+		}
+
+		return $overlay;
 	}
 
 	/**
 	 * @param string $text
 	 * @return array<string,mixed>|null
+	 * @internal For unit tests
 	 */
 	public function parseJsonConfig( string $text ): ?array {
 		$text = trim( $text );
@@ -153,7 +198,7 @@ class NearMeConfigService {
 	 */
 	private function normalizeSources( $wikiSources, $localSources ): array {
 		if ( is_array( $wikiSources ) && $wikiSources !== [] ) {
-			return $this->normalizeSourceList( $wikiSources );
+			return $wikiSources;
 		}
 
 		if ( !is_array( $localSources ) ) {
