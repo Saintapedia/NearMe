@@ -2,6 +2,8 @@
 /**
  * Aliases for special pages provided by NearMe.
  *
+ * NearMe is a deprecated alias kept for bookmarks; canonical name is Nearby.
+ *
  * @file
  */
 

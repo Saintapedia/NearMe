@@ -1,8 +1,8 @@
 {
 	"name": "NearMe",
-	"version": "0.2.2",
-	"author": [ "Saintapedia contributors" ],
-	"url": "https://github.com/Saintapedia/NearMe",
+	"version": "0.2.5",
+	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
+	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
 	"license-name": "MIT",
 	"type": "specialpage",
@@ -52,6 +52,11 @@
 				"nearme-info-heading",
 				"nearme-info-description",
 				"nearme-show-button",
+				"nearme-show-button-table",
+				"nearme-filter-all",
+				"nearme-filter-label",
+				"nearme-privacy-hint",
+				"nearme-try-without-gps",
 				"nearme-distance-km",
 				"nearme-distance-m",
 				"nearme-requirements",
@@ -64,7 +69,8 @@
 				"nearme-permission-denied",
 				"nearme-locating",
 				"nearme-loading",
-				"nearme-map-label"
+				"nearme-map-label",
+				"nearme-map-toggle"
 			],
 			"config": [
 				"NearMeDefaultRadius",
@@ -107,10 +113,18 @@
 				{
 					"table": "Parishes",
 					"coordField": "ParishLocation",
-					"labelField": "ShortName"
+					"label": "Parishes"
 				}
 			],
-			"description": "Cargo tables to search. Each entry: table, coordField, optional labelField. Saintapedia Parishes use ParishLocation + ShortName (see Template:Parish)."
+			"description": "Fallback when MediaWiki:NearMe-config is absent. Each entry requires table, coordField, and label (friendly table name). Optional: labelField (row display; defaults to page title), default (pre-selected tab)."
+		},
+		"NearMeConfigPage": {
+			"value": "NearMe-config",
+			"description": "MediaWiki page (JSON) listing Cargo sources, defaults, and labels. Takes precedence over $wgNearMeTables when present."
+		},
+		"NearMeIntroPage": {
+			"value": "",
+			"description": "Optional MediaWiki page name (e.g. NearMe-intro) with wikitext shown above the Nearby app. Leave empty to show no intro."
 		}
 	},
 	"manifest_version": 2
