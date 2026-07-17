@@ -253,8 +253,9 @@
 			if ( mapsEnabled ) {
 				html += '<div class="nearme-map-wrap' + ( this.mapCollapsed ? ' nearme-map-wrap--collapsed' : '' ) + '">';
 				html += '<button type="button" class="nearme-map-toggle" aria-expanded="' +
-					( this.mapCollapsed ? 'false' : 'true' ) + '">' +
-					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '</button>';
+					( this.mapCollapsed ? 'false' : 'true' ) +
+					'" aria-controls="nearme-map">' +
+					mw.html.escape( mw.msg( 'nearme-map-toggle' ) ) + '</button>';
 				html += '<div id="nearme-map" class="nearme-map" role="region" aria-label="' +
 					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
 				html += '</div>';
@@ -390,7 +391,7 @@
 
 		nearbyApi.getPagesAtCoordinates( lat, lon, {
 			table: activeTable || undefined,
-			tableLabels: this.tableLabels
+			tableLabels: self.tableLabels
 		} ).then( function ( result ) {
 			self.loading = false;
 			self.loadInFlight = null;

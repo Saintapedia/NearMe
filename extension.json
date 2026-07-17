@@ -69,7 +69,8 @@
 				"nearme-permission-denied",
 				"nearme-locating",
 				"nearme-loading",
-				"nearme-map-label"
+				"nearme-map-label",
+				"nearme-map-toggle"
 			],
 			"config": [
 				"NearMeDefaultRadius",
