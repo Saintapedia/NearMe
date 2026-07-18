@@ -99,6 +99,8 @@ When this page exists, it takes precedence over <code>$wgNearMeTables</code>.
 
 ; <code>$wgNearMeTables</code>
 : Fallback array of Cargo sources when <code>MediaWiki:NearMe-config</code> is absent. Each entry needs <code>table</code>, <code>coordField</code>, and <code>label</code>; <code>labelField</code> is optional.
+; <code>$wgNearMeExamples</code>
+: Default “Try without GPS” location links. Ships with Philadelphia, PA (<code>39.9526, -75.1652</code>). A non-empty <code>examples</code> array in <code>MediaWiki:NearMe-config</code> replaces this list. Set to <code>[]</code> to hide examples when the wiki page has none.
 ; <code>$wgNearMeConfigPage</code>
 : MediaWiki page name for JSON config. Default: <code>NearMe-config</code>. Set to empty string to disable wiki config.
 ; <code>$wgNearMeIntroPage</code>

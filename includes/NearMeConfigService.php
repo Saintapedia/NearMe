@@ -70,7 +70,12 @@ class NearMeConfigService {
 			$mainConfig->get( 'NearMeTables' )
 		);
 
-		$examples = ( $wikiOverlay !== null ) ? $wikiOverlay['examples'] : [];
+		// $wgNearMeExamples is the shipped default (e.g. Philadelphia).
+		// A non-empty wiki "examples" list replaces it; empty wiki list keeps $wg.
+		$examples = $this->normalizeExamples( $mainConfig->get( 'NearMeExamples' ) );
+		if ( $wikiOverlay !== null && $wikiOverlay['examples'] !== [] ) {
+			$examples = $wikiOverlay['examples'];
+		}
 
 		// Filter only when using LocalSettings fallback (wiki overlay is pre-filtered).
 		if ( $wikiOverlay === null ) {

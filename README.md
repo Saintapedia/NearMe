@@ -9,6 +9,7 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
 - **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
+- **Example location** — “Try without GPS” link for Philadelphia, PA (override via `$wgNearMeExamples` or wiki config)
 - **Multi-table support** — add Saints, Shrines, etc. via `$wgNearMeTables`
 - **MW 1.39+ compatible** — no Codex/Vue dependency (unlike upstream NearbyPages 1.47+)
 
@@ -76,11 +77,20 @@ Cargo tables must declare a field of type `Coordinates`.
 
    $wgNearMeDefaultRadius = 10000; // metres (10 km)
    $wgNearMeDefaultLimit = 50;
+
+   // Optional: replace the default Philadelphia example (or set [] to hide)
+   // $wgNearMeExamples = [
+   //     [ 'label' => 'Philadelphia, PA', 'lat' => 39.9526, 'lon' => -75.1652 ],
+   // ];
    ```
+
+   Or copy `config/NearMe-config.sample.json` (includes the Philadelphia example) to
+   `MediaWiki:NearMe-config` on the wiki.
 
 4. Run `php maintenance/update.php` and verify at [Special:Version](Special:Version).
 
-5. Open [Special:Nearby](Special:Nearby) and click **Show nearby parishes**.
+5. Open [Special:Nearby](Special:Nearby). Use **Try without GPS: Philadelphia, PA** or
+   click **Show nearby parishes**.
 
    Parishes without `ParishLocation` coordinates are excluded automatically.
 

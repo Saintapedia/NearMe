@@ -7,5 +7,12 @@
 			"coordField": "Coordinates",
 			"label": "Places"
 		}
+	],
+	"examples": [
+		{
+			"label": "Philadelphia, PA",
+			"lat": 39.9526,
+			"lon": -75.1652
+		}
 	]
 }
