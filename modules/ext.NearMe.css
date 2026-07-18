@@ -106,29 +106,41 @@
 	pointer-events: none;
 }
 
+/* Empty-state copy: one typeface, one size scale, shared center alignment.
+   Vector styles h3/links differently; inherit keeps the block visually even. */
 .nearme-hero {
 	text-align: center;
-	margin: 1.5rem 0 1rem;
+	margin: 1.5rem auto 1rem;
+	max-width: 36rem;
 }
 
 .nearme-hero__heading {
-	font-size: 1.1em;
+	font-family: inherit;
+	font-size: 1.125rem;
+	font-weight: 600;
+	line-height: 1.35;
 	margin: 0 0 0.5rem;
+	color: #202122;
 }
 
-.nearme-hero__description {
+.nearme-hero__description,
+.nearme-examples,
+.nearme-privacy-hint {
+	font-family: inherit;
+	font-size: 0.9375rem;
+	font-weight: 400;
+	line-height: 1.5;
 	color: #54595d;
 	margin: 0;
+	text-align: center;
 }
 
 .nearme-examples {
-	text-align: center;
 	margin: 0.75rem 0 0;
-	font-size: 0.9em;
 }
 
 .nearme-examples__label {
-	color: #54595d;
+	color: inherit;
 }
 
 .nearme-examples__sep {
@@ -137,14 +149,15 @@
 }
 
 .nearme-examples__link {
+	font-family: inherit;
+	font-size: inherit;
+	font-weight: inherit;
 	white-space: nowrap;
 }
 
 .nearme-privacy-hint {
-	color: #54595d;
-	font-size: 0.85em;
-	text-align: center;
-	margin: 0 0 0.75rem;
+	margin: 0.75rem auto 0.75rem;
+	max-width: 36rem;
 }
 
 .nearme-message {
