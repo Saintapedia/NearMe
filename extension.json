@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.6",
+	"version": "0.2.7",
 	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
