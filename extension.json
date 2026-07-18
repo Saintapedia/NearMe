@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.5",
+	"version": "0.2.6",
 	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -117,6 +117,16 @@
 				}
 			],
 			"description": "Fallback when MediaWiki:NearMe-config is absent. Each entry requires table, coordField, and label (friendly table name). Optional: labelField (row display; defaults to page title), default (pre-selected tab)."
+		},
+		"NearMeExamples": {
+			"value": [
+				{
+					"label": "Philadelphia, PA",
+					"lat": 39.9526,
+					"lon": -75.1652
+				}
+			],
+			"description": "Default 'Try without GPS' location links on Special:Nearby. Overridden by a non-empty examples array in MediaWiki:NearMe-config. Set to [] to hide examples when no wiki list is set."
 		},
 		"NearMeConfigPage": {
 			"value": "NearMe-config",
