@@ -7,6 +7,7 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 ## Features
 
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
+- **Result filter** — search field to narrow the nearby list and map by name
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
 - **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
 - **Example location** — “Try without GPS” link for Philadelphia, PA (override via `$wgNearMeExamples` or wiki config)

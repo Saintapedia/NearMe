@@ -79,6 +79,7 @@
 		this.tableLabels = buildTableLabels( this.sources );
 		this.selectedTable = this.getInitialTable();
 		this.pages = [];
+		this.filterQuery = '';
 		this.center = null;
 		this.error = null;
 		this.loading = false;
@@ -200,6 +201,98 @@
 	};
 
 	/**
+	 * @return {Array.<Object>}
+	 */
+	NearMeApp.prototype.getFilteredPages = function () {
+		var query = ( this.filterQuery || '' ).trim().toLowerCase();
+		if ( !query ) {
+			return this.pages;
+		}
+		return this.pages.filter( function ( page ) {
+			var title = ( page.title || '' ).toLowerCase();
+			return title.indexOf( query ) !== -1;
+		} );
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderSearch = function () {
+		if ( this.pages.length === 0 ) {
+			return '';
+		}
+
+		return '<div class="nearme-search">' +
+			'<label class="nearme-search__label" for="nearme-search">' +
+			mw.html.escape( mw.msg( 'nearme-search-label' ) ) +
+			'</label>' +
+			'<input type="search" id="nearme-search" class="nearme-search__input" ' +
+			'placeholder="' + mw.html.escape( mw.msg( 'nearme-search-placeholder' ) ) + '" ' +
+			'value="' + mw.html.escape( this.filterQuery || '' ) + '" ' +
+			'autocomplete="off" enterkeyhint="search" />' +
+			'</div>';
+	};
+
+	NearMeApp.prototype.bindSearch = function () {
+		var self = this;
+		var input = this.root.querySelector( '#nearme-search' );
+		if ( !input ) {
+			return;
+		}
+		input.addEventListener( 'input', function () {
+			self.filterQuery = input.value;
+			self.updateFilteredResults();
+		} );
+	};
+
+	/**
+	 * Re-render list + map for the current filter without destroying the search input.
+	 */
+	NearMeApp.prototype.updateFilteredResults = function () {
+		var resultsEl = this.root.querySelector( '.nearme-results' );
+		if ( !resultsEl ) {
+			return;
+		}
+		resultsEl.innerHTML = this.renderResultsList();
+		this.updateMap( true );
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderResultsList = function () {
+		var self = this;
+		var filtered = this.getFilteredPages();
+		var html = '';
+
+		if ( filtered.length === 0 ) {
+			html += '<div class="nearme-message nearme-message--empty" role="status">' +
+				mw.html.escape( mw.msg( 'nearme-search-no-matches' ) ) +
+				'</div>';
+			return html;
+		}
+
+		html += '<ol class="nearme-list">';
+		filtered.forEach( function ( page ) {
+			var showBadge = self.showTableBadges() && page.tableLabel;
+			html += '<li class="nearme-list__item' +
+				( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
+			if ( showBadge ) {
+				html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
+			}
+			html += '<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
+				mw.html.escape( page.title ) +
+				'</a>';
+			if ( page.proximity ) {
+				html += '<span class="nearme-list__distance">' + mw.html.escape( page.proximity ) + '</span>';
+			}
+			html += '</li>';
+		} );
+		html += '</ol>';
+		return html;
+	};
+
+	/**
 	 * @param {string|null} table
 	 */
 	NearMeApp.prototype.setSelectedTable = function ( table ) {
@@ -260,23 +353,8 @@
 					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
 				html += '</div>';
 			}
-			html += '<ol class="nearme-list">';
-			this.pages.forEach( function ( page ) {
-				var showBadge = self.showTableBadges() && page.tableLabel;
-				html += '<li class="nearme-list__item' +
-					( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
-				if ( showBadge ) {
-					html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
-				}
-				html += '<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
-					mw.html.escape( page.title ) +
-					'</a>';
-				if ( page.proximity ) {
-					html += '<span class="nearme-list__distance">' + mw.html.escape( page.proximity ) + '</span>';
-				}
-				html += '</li>';
-			} );
-			html += '</ol>';
+			html += this.renderSearch();
+			html += '<div class="nearme-results">' + this.renderResultsList() + '</div>';
 		}
 
 		if ( showHero ) {
@@ -310,10 +388,15 @@
 
 		this.bindTablePicker();
 		this.bindExamples();
-		this.updateMap();
+		this.bindSearch();
+		this.updateMap( false );
 	};
 
-	NearMeApp.prototype.updateMap = function () {
+	/**
+	 * @param {boolean} [reuseMap] When true, update an existing map instance instead of recreating it.
+	 */
+	NearMeApp.prototype.updateMap = function ( reuseMap ) {
+		var filtered = this.getFilteredPages();
 		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
 			return;
 		}
@@ -328,21 +411,25 @@
 		}
 
 		var self = this;
-		function initMap() {
+		function applyMap() {
 			if ( !window.NearMeMap ) {
+				return;
+			}
+			if ( reuseMap && self.mapView ) {
+				self.mapView.update( self.center, filtered );
 				return;
 			}
 			if ( self.mapView ) {
 				self.mapView.destroy();
 			}
 			self.mapView = new window.NearMeMap( mapEl );
-			self.mapView.update( self.center, self.pages );
+			self.mapView.update( self.center, filtered );
 		}
 
 		if ( window.NearMeMap ) {
-			initMap();
+			applyMap();
 		} else if ( mw.loader.getState( 'ext.NearMe.maps' ) !== null ) {
-			mw.loader.using( 'ext.NearMe.maps' ).then( initMap );
+			mw.loader.using( 'ext.NearMe.maps' ).then( applyMap );
 		}
 	};
 
@@ -376,6 +463,7 @@
 		this.loading = true;
 		this.showButtonDisabled = true;
 		this.pages = [];
+		this.filterQuery = '';
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
@@ -449,6 +537,7 @@
 
 	NearMeApp.prototype.clearResults = function () {
 		this.pages = [];
+		this.filterQuery = '';
 		this.center = null;
 		this.error = null;
 		this.loading = false;

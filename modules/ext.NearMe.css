@@ -180,6 +180,51 @@
 	color: #202122;
 }
 
+.nearme-search {
+	margin: 0 0 0.75rem;
+}
+
+.nearme-search__label {
+	display: block;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: #202122;
+	margin: 0 0 0.35rem;
+}
+
+.nearme-search__input {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 1em;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #a2a9b1;
+	border-radius: 2px;
+	background: #fff;
+	color: #202122;
+}
+
+.nearme-search__input:focus {
+	outline: 2px solid #36c;
+	outline-offset: -1px;
+	border-color: #36c;
+}
+
+.nearme-search__input::-webkit-search-cancel-button {
+	cursor: pointer;
+}
+
+.nearme-results {
+	margin: 0;
+}
+
+.nearme-message--empty {
+	background: #f8f9fa;
+	border: 1px solid #c8ccd1;
+	color: #54595d;
+}
+
 .nearme-list {
 	list-style: none;
 	margin: 0;

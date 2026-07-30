@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.7",
+	"version": "0.2.8",
 	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -55,6 +55,9 @@
 				"nearme-show-button-table",
 				"nearme-filter-all",
 				"nearme-filter-label",
+				"nearme-search-label",
+				"nearme-search-placeholder",
+				"nearme-search-no-matches",
 				"nearme-privacy-hint",
 				"nearme-try-without-gps",
 				"nearme-distance-km",
