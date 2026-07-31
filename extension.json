@@ -45,7 +45,8 @@
 				"jquery",
 				"mediawiki.api",
 				"mediawiki.util",
-				"mediawiki.router"
+				"mediawiki.router",
+				"mediawiki.jqueryMsg"
 			],
 			"messages": [
 				"nearme-title",

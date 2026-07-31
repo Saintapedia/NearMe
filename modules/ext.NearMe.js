@@ -261,8 +261,7 @@
 	 * Re-render list + map for the current filter without destroying the search input.
 	 */
 	NearMeApp.prototype.updateFilteredResults = function () {
-		var resultsEl = this.root.querySelector( '#nearme-results' ) ||
-			this.root.querySelector( '.nearme-results' );
+		var resultsEl = this.root.querySelector( '#nearme-results' );
 		if ( !resultsEl ) {
 			return;
 		}
@@ -455,20 +454,22 @@
 			}
 			// Read filter state at apply time so async map loads cannot use a stale snapshot.
 			var filtered = self.getFilteredPages();
-			var mapOptions = { fitBounds: fitBounds };
 
 			if ( preferReuse && self.mapView ) {
-				self.mapView.update( self.center, filtered, mapOptions );
+				// Existing map: honor fitBounds (false while typing so the camera does not jump).
+				self.mapView.update( self.center, filtered, { fitBounds: fitBounds } );
 				return;
 			}
 
 			// Full render path destroys the map before innerHTML; recreate on a fresh container.
+			// Always fit on first create — a filter keystroke may win the async race with
+			// fitBounds:false before the map instance exists, leaving Leaflet at world view.
 			if ( self.mapView ) {
 				self.mapView.destroy();
 				self.mapView = null;
 			}
 			self.mapView = new window.NearMeMap( mapEl );
-			self.mapView.update( self.center, filtered, mapOptions );
+			self.mapView.update( self.center, filtered, { fitBounds: true } );
 		}
 
 		if ( window.NearMeMap ) {
