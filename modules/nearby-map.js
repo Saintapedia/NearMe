@@ -99,9 +99,14 @@
 	/**
 	 * @param {{lat: number, lon: number}} center
 	 * @param {Object[]} pages Result cards from NearMeApi.toCard
+	 * @param {Object} [options]
+	 * @param {boolean} [options.fitBounds=true] When false, only refresh markers (keep camera).
 	 */
-	NearMeMap.prototype.update = function ( center, pages ) {
+	NearMeMap.prototype.update = function ( center, pages, options ) {
 		var self = this;
+		options = options || {};
+		var shouldFitBounds = options.fitBounds !== false;
+
 		this.ensureMap();
 		this.cluster.clearLayers();
 
@@ -137,10 +142,12 @@
 			bounds.extend( latlng );
 		} );
 
-		if ( bounds.isValid() ) {
-			this.map.fitBounds( bounds.pad( 0.12 ) );
-		} else {
-			this.map.setView( centerLatLng, 14 );
+		if ( shouldFitBounds ) {
+			if ( bounds.isValid() ) {
+				this.map.fitBounds( bounds.pad( 0.12 ) );
+			} else {
+				this.map.setView( centerLatLng, 14 );
+			}
 		}
 
 		setTimeout( function () {

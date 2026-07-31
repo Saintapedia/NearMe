@@ -10,6 +10,7 @@
 	"nearme-search-label": "Visible label for the results filter text field on Special:Nearby.",
 	"nearme-search-placeholder": "Placeholder text for the results filter text field.",
 	"nearme-search-no-matches": "Status message when the results filter matches no nearby pages.",
+	"nearme-search-result-count": "Live status while filtering results. Parameters:\n* $1 - number of matching results (already localized)",
 	"nearme-privacy-hint": "Short privacy note shown before the first search.",
 	"nearme-try-without-gps": "Label before example location link(s) in the hero area.",
 	"nearme-map-label": "Accessible label for the results map region.",

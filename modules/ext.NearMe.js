@@ -209,8 +209,13 @@
 			return this.pages;
 		}
 		return this.pages.filter( function ( page ) {
+			// Match display label and underlying wiki title (ShortName vs full page name).
 			var title = ( page.title || '' ).toLowerCase();
-			return title.indexOf( query ) !== -1;
+			var id = ( page.id || '' ).toLowerCase();
+			var tableLabel = ( page.tableLabel || '' ).toLowerCase();
+			return title.indexOf( query ) !== -1 ||
+				id.indexOf( query ) !== -1 ||
+				tableLabel.indexOf( query ) !== -1;
 		} );
 	};
 
@@ -229,7 +234,8 @@
 			'<input type="search" id="nearme-search" class="nearme-search__input" ' +
 			'placeholder="' + mw.html.escape( mw.msg( 'nearme-search-placeholder' ) ) + '" ' +
 			'value="' + mw.html.escape( this.filterQuery || '' ) + '" ' +
-			'autocomplete="off" enterkeyhint="search" />' +
+			'autocomplete="off" enterkeyhint="done" ' +
+			'aria-controls="nearme-results" />' +
 			'</div>';
 	};
 
@@ -243,18 +249,26 @@
 			self.filterQuery = input.value;
 			self.updateFilteredResults();
 		} );
+		input.addEventListener( 'keydown', function ( event ) {
+			// Live filter only — avoid browser “search” submit quirks on Enter.
+			if ( event.key === 'Enter' ) {
+				event.preventDefault();
+			}
+		} );
 	};
 
 	/**
 	 * Re-render list + map for the current filter without destroying the search input.
 	 */
 	NearMeApp.prototype.updateFilteredResults = function () {
-		var resultsEl = this.root.querySelector( '.nearme-results' );
+		var resultsEl = this.root.querySelector( '#nearme-results' ) ||
+			this.root.querySelector( '.nearme-results' );
 		if ( !resultsEl ) {
 			return;
 		}
 		resultsEl.innerHTML = this.renderResultsList();
-		this.updateMap( true );
+		// Filter path: refresh markers without re-fitting the camera each keystroke.
+		this.updateMap( { reuseMap: true, fitBounds: false } );
 	};
 
 	/**
@@ -264,12 +278,19 @@
 		var self = this;
 		var filtered = this.getFilteredPages();
 		var html = '';
+		var hasQuery = ( this.filterQuery || '' ).trim() !== '';
 
 		if ( filtered.length === 0 ) {
-			html += '<div class="nearme-message nearme-message--empty" role="status">' +
+			html += '<div class="nearme-message nearme-message--empty" role="status" aria-live="polite">' +
 				mw.html.escape( mw.msg( 'nearme-search-no-matches' ) ) +
 				'</div>';
 			return html;
+		}
+
+		if ( hasQuery ) {
+			html += '<div class="nearme-search-status" role="status" aria-live="polite">' +
+				mw.html.escape( mw.msg( 'nearme-search-result-count', filtered.length ) ) +
+				'</div>';
 		}
 
 		html += '<ol class="nearme-list">';
@@ -354,7 +375,8 @@
 				html += '</div>';
 			}
 			html += this.renderSearch();
-			html += '<div class="nearme-results">' + this.renderResultsList() + '</div>';
+			html += '<div id="nearme-results" class="nearme-results">' +
+				this.renderResultsList() + '</div>';
 		}
 
 		if ( showHero ) {
@@ -389,14 +411,23 @@
 		this.bindTablePicker();
 		this.bindExamples();
 		this.bindSearch();
-		this.updateMap( false );
+		this.updateMap( { reuseMap: false, fitBounds: true } );
 	};
 
 	/**
-	 * @param {boolean} [reuseMap] When true, update an existing map instance instead of recreating it.
+	 * @param {Object|boolean} [options]
+	 * @param {boolean} [options.reuseMap] Prefer updating an existing map instance.
+	 * @param {boolean} [options.fitBounds] Whether to re-fit the map camera (default true).
+	 * Legacy boolean true/false is treated as reuseMap for call-site compatibility.
 	 */
-	NearMeApp.prototype.updateMap = function ( reuseMap ) {
-		var filtered = this.getFilteredPages();
+	NearMeApp.prototype.updateMap = function ( options ) {
+		if ( typeof options === 'boolean' ) {
+			options = { reuseMap: options };
+		}
+		options = options || {};
+		var preferReuse = !!options.reuseMap;
+		var fitBounds = options.fitBounds !== false;
+
 		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
 			return;
 		}
@@ -411,19 +442,33 @@
 		}
 
 		var self = this;
+		// Bump generation so late-resolving map module loads cannot overwrite a newer filter state.
+		this.mapUpdateGeneration = ( this.mapUpdateGeneration || 0 ) + 1;
+		var generation = this.mapUpdateGeneration;
+
 		function applyMap() {
-			if ( !window.NearMeMap ) {
+			if ( generation !== self.mapUpdateGeneration ) {
 				return;
 			}
-			if ( reuseMap && self.mapView ) {
-				self.mapView.update( self.center, filtered );
+			if ( !window.NearMeMap || !self.center ) {
 				return;
 			}
+			// Read filter state at apply time so async map loads cannot use a stale snapshot.
+			var filtered = self.getFilteredPages();
+			var mapOptions = { fitBounds: fitBounds };
+
+			if ( preferReuse && self.mapView ) {
+				self.mapView.update( self.center, filtered, mapOptions );
+				return;
+			}
+
+			// Full render path destroys the map before innerHTML; recreate on a fresh container.
 			if ( self.mapView ) {
 				self.mapView.destroy();
+				self.mapView = null;
 			}
 			self.mapView = new window.NearMeMap( mapEl );
-			self.mapView.update( self.center, filtered );
+			self.mapView.update( self.center, filtered, mapOptions );
 		}
 
 		if ( window.NearMeMap ) {
@@ -439,6 +484,7 @@
 			this.error += ' ' + mw.msg( 'nearme-error-guidance' );
 		}
 		this.pages = [];
+		this.filterQuery = '';
 		this.loading = false;
 		this.locating = false;
 		this.render();
