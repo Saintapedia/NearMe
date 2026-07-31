@@ -88,6 +88,8 @@
 		this.loadInFlight = null;
 		this.mapView = null;
 		this.mapCollapsed = false;
+		this.filterDebounceTimer = null;
+		this.mapUpdateGeneration = 0;
 		this.render();
 		try {
 			this.bindRoutes();
@@ -239,20 +241,35 @@
 			'</div>';
 	};
 
+	NearMeApp.prototype.clearFilterDebounce = function () {
+		if ( this.filterDebounceTimer ) {
+			clearTimeout( this.filterDebounceTimer );
+			this.filterDebounceTimer = null;
+		}
+	};
+
 	NearMeApp.prototype.bindSearch = function () {
 		var self = this;
 		var input = this.root.querySelector( '#nearme-search' );
 		if ( !input ) {
 			return;
 		}
+		// Coalesce rapid keystrokes so list/map work is not repeated per character.
+		var FILTER_DEBOUNCE_MS = 150;
 		input.addEventListener( 'input', function () {
 			self.filterQuery = input.value;
-			self.updateFilteredResults();
+			self.clearFilterDebounce();
+			self.filterDebounceTimer = setTimeout( function () {
+				self.filterDebounceTimer = null;
+				self.updateFilteredResults();
+			}, FILTER_DEBOUNCE_MS );
 		} );
 		input.addEventListener( 'keydown', function ( event ) {
 			// Live filter only — avoid browser “search” submit quirks on Enter.
 			if ( event.key === 'Enter' ) {
 				event.preventDefault();
+				self.clearFilterDebounce();
+				self.updateFilteredResults();
 			}
 		} );
 	};
@@ -331,6 +348,10 @@
 		var hasMap = this.pages.length > 0 && mapsEnabled;
 		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
 		var showHero = this.pages.length === 0 && !this.loading && !this.locating && !this.error;
+
+		// Full re-render replaces the DOM; drop any pending filter timer so it
+		// cannot fire against a torn-down results container.
+		this.clearFilterDebounce();
 
 		if ( this.mapView ) {
 			this.mapView.destroy();
@@ -486,6 +507,7 @@
 		}
 		this.pages = [];
 		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.loading = false;
 		this.locating = false;
 		this.render();
@@ -511,6 +533,7 @@
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
@@ -585,6 +608,7 @@
 	NearMeApp.prototype.clearResults = function () {
 		this.pages = [];
 		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.center = null;
 		this.error = null;
 		this.loading = false;
