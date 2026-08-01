@@ -119,6 +119,12 @@
 					if ( !title || row.lat == null || row.lon == null ) {
 						return null;
 					}
+					var subtitle = '';
+					if ( row.fields && typeof row.fields === 'object' ) {
+						subtitle = Object.keys( row.fields ).map( function ( key ) {
+							return row.fields[ key ];
+						} ).filter( Boolean ).join( ' · ' );
+					}
 					return {
 						url: title.getUrl(),
 						title: row.label || row.title,
@@ -127,7 +133,9 @@
 						lon: row.lon,
 						table: row.table,
 						tableLabel: ( tableLabels && row.table ) ?
-							( tableLabels[ row.table ] || row.table ) : row.table
+							( tableLabels[ row.table ] || row.table ) : row.table,
+						subtitle: subtitle,
+						fields: row.fields || null
 					};
 				} ).filter( Boolean )
 			};

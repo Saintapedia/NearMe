@@ -157,9 +157,18 @@ class NearbyQueryService {
 	}
 
 	/**
-	 * Text search on page title and optional label field; only rows with coordinates.
+	 * Cargo-query front: LIKE over configured search fields; only rows with coordinates.
 	 *
-	 * @param array{table:string,coordField:string,labelField?:string} $source
+	 * Equivalent in spirit to action=cargoquery with a generated tables/fields/where,
+	 * but does not require the runcargoqueries right (anonymous Special:Nearby use).
+	 *
+	 * @param array{
+	 *   table:string,
+	 *   coordField:string,
+	 *   labelField?:string,
+	 *   searchFields?:array<int,string>,
+	 *   displayFields?:array<int,string>
+	 * } $source
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function searchSource( array $source, string $query, int $limit ): array {
@@ -174,6 +183,8 @@ class NearbyQueryService {
 		$table = $source['table'];
 		$coordField = $source['coordField'];
 		$labelField = $source['labelField'] ?? null;
+		$searchFields = $this->resolveSearchFields( $source );
+		$displayFields = $this->resolveDisplayFields( $source );
 
 		// Cargo double-quoted string: strip quotes/backslashes so LIKE stays well-formed.
 		$safe = str_replace( [ '"', '\\', "\0", "\n", "\r" ], '', $query );
@@ -182,9 +193,12 @@ class NearbyQueryService {
 		}
 		$like = '%' . $safe . '%';
 
-		$conditions = [ '_pageName LIKE "' . $like . '"' ];
-		if ( $labelField !== null && $labelField !== '' ) {
-			$conditions[] = $labelField . ' LIKE "' . $like . '"';
+		$conditions = [];
+		foreach ( $searchFields as $field ) {
+			$conditions[] = $field . ' LIKE "' . $like . '"';
+		}
+		if ( $conditions === [] ) {
+			return [];
 		}
 		$where = '(' . implode( ' OR ', $conditions ) . ')';
 
@@ -198,6 +212,11 @@ class NearbyQueryService {
 		];
 		if ( $labelField !== null && $labelField !== '' ) {
 			$fields[] = $labelField;
+		}
+		foreach ( $displayFields as $displayField ) {
+			if ( !in_array( $displayField, $fields, true ) ) {
+				$fields[] = $displayField;
+			}
 		}
 
 		$orderBy = ( $labelField !== null && $labelField !== '' ) ? $labelField : '_pageName';
@@ -244,7 +263,15 @@ class NearbyQueryService {
 				$label = (string)$row[$labelField];
 			}
 
-			$results[] = [
+			$display = [];
+			foreach ( $displayFields as $displayField ) {
+				if ( !isset( $row[$displayField] ) || $row[$displayField] === '' ) {
+					continue;
+				}
+				$display[$displayField] = (string)$row[$displayField];
+			}
+
+			$result = [
 				'pageid' => $pageId,
 				'ns' => $ns,
 				'title' => $title->getPrefixedText(),
@@ -253,9 +280,49 @@ class NearbyQueryService {
 				'label' => $label,
 				'table' => $table,
 			];
+			if ( $display !== [] ) {
+				$result['fields'] = $display;
+			}
+			// Debugging / advanced UX: the Cargo WHERE this row satisfied.
+			$result['cargo'] = [
+				'tables' => $table,
+				'where' => $where,
+			];
+			$results[] = $result;
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Fields OR-matched by LIKE for hero name search (Cargo query front).
+	 *
+	 * @param array{labelField?:string,searchFields?:array<int,string>} $source
+	 * @return array<int,string>
+	 */
+	private function resolveSearchFields( array $source ): array {
+		if ( !empty( $source['searchFields'] ) && is_array( $source['searchFields'] ) ) {
+			return array_values( $source['searchFields'] );
+		}
+		$fields = [ '_pageName' ];
+		$labelField = $source['labelField'] ?? null;
+		if ( $labelField !== null && $labelField !== '' && $labelField !== '_pageName' ) {
+			$fields[] = $labelField;
+		}
+		return $fields;
+	}
+
+	/**
+	 * Extra Cargo columns returned for match subtitles.
+	 *
+	 * @param array{displayFields?:array<int,string>,labelField?:string} $source
+	 * @return array<int,string>
+	 */
+	private function resolveDisplayFields( array $source ): array {
+		if ( !empty( $source['displayFields'] ) && is_array( $source['displayFields'] ) ) {
+			return array_values( $source['displayFields'] );
+		}
+		return [];
 	}
 
 	/**

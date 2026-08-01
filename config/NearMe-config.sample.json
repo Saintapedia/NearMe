@@ -5,7 +5,10 @@
 		{
 			"table": "Places",
 			"coordField": "Coordinates",
-			"label": "Places"
+			"labelField": "Name",
+			"label": "Places",
+			"searchFields": [ "Name", "City", "_pageName" ],
+			"displayFields": [ "City" ]
 		}
 	],
 	"examples": [

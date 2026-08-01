@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.9",
+	"version": "0.3.0",
 	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -131,7 +131,7 @@
 					"label": "Parishes"
 				}
 			],
-			"description": "Fallback when MediaWiki:NearMe-config is absent. Each entry requires table, coordField, and label (friendly table name). Optional: labelField (row display; defaults to page title), default (pre-selected tab)."
+			"description": "Fallback when MediaWiki:NearMe-config is absent. Each entry requires table, coordField, and label (friendly table name). Optional: labelField (row display; defaults to page title), default (pre-selected tab), searchFields (Cargo columns OR-matched by hero name search; defaults to _pageName + labelField), displayFields (extra Cargo columns shown under each name match)."
 		},
 		"NearMeExamples": {
 			"value": [

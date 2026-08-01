@@ -237,6 +237,12 @@
 	outline-offset: 2px;
 }
 
+.nearme-name-matches__subtitle {
+	font-weight: 400;
+	font-size: 0.85em;
+	color: #54595d;
+}
+
 .nearme-name-matches__action {
 	font-weight: 400;
 	font-size: 0.85em;

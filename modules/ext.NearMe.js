@@ -224,6 +224,9 @@
 			html += '<button type="button" class="nearme-name-matches__nearby" ' +
 				'data-index="' + index + '">' +
 				mw.html.escape( match.title ) +
+				( match.subtitle ?
+					'<span class="nearme-name-matches__subtitle">' +
+					mw.html.escape( match.subtitle ) + '</span>' : '' ) +
 				'<span class="nearme-name-matches__action">' +
 				mw.html.escape( mw.msg( 'nearme-name-search-nearby' ) ) +
 				'</span></button>';

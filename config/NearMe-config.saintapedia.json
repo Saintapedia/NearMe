@@ -1,25 +1,58 @@
 {
-	"defaultRadius": 10000,
-	"defaultLimit": 50,
-	"sources": [
-		{
-			"table": "Parishes",
-			"coordField": "ParishLocation",
-			"label": "Parishes",
-			"labelField": "ShortName",
-			"default": true
-		}
-	],
-	"examples": [
-		{
-			"label": "Philadelphia, PA",
-			"lat": 39.9526,
-			"lon": -75.1652
-		},
-		{
-			"label": "Pittsburgh, PA",
-			"lat": 40.4406,
-			"lon": -79.9959
-		}
-	]
+  "defaultRadius": 15000,
+  "defaultLimit": 50,
+  "sources": [
+    {
+      "table": "Parishes",
+      "coordField": "ParishLocation",
+      "labelField": "ShortName",
+      "label": "Parishes",
+      "default": true,
+      "searchFields": [ "ShortName", "City", "Dedication", "_pageName" ],
+      "displayFields": [ "City", "Diocese" ]
+    },
+    {
+      "table": "Footprints",
+      "coordField": "Coordinates",
+      "labelField": "LocationTitle",
+      "label": "Footprints tours",
+      "default": true,
+      "searchFields": [ "LocationTitle", "_pageName" ],
+      "displayFields": [ "LocationTitle" ]
+    },
+    {
+      "table": "Shrines",
+      "coordField": "ShrineLocation",
+      "label": "Shrines",
+      "default": false,
+      "searchFields": [ "_pageName" ]
+    }
+  ],
+  "examples": [
+    {
+      "label": "Emmitsburg, MD (Seton)",
+      "lat": 39.7047,
+      "lon": -77.3253
+    },
+    {
+      "label": "Philadelphia, PA (Neumann)",
+      "lat": 39.9705,
+      "lon": -75.1439
+    },
+    {
+      "label": "Detroit, MI (Solanus)",
+      "lat": 42.352,
+      "lon": -83.015
+    },
+    {
+      "label": "New York, NY",
+      "lat": 40.7128,
+      "lon": -74.006
+    },
+    {
+      "label": "Auriesville / Fonda, NY (Kateri & Jogues)",
+      "lat": 42.94,
+      "lon": -74.34
+    }
+  ]
 }

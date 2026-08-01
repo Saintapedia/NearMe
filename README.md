@@ -7,10 +7,10 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 ## Features
 
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
-- **Name search** — find a place by name on the landing screen, then show pages near it (no GPS)
+- **Name search (Cargo query front)** — landing-screen search over configured Cargo fields, then show pages near a match (no GPS; no `runcargoqueries` right required)
 - **Result filter** — after nearby results load, filter the list and map by name
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
-- **`action=cargonearbysearch` API** for name search of coordinate rows
+- **`action=cargonearbysearch` API** — constrained Cargo-style name query for rows with coordinates
 - **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
 - **Example location** — “Try without GPS” link for Philadelphia, PA (override via `$wgNearMeExamples` or wiki config)
 - **Multi-table support** — add Saints, Shrines, etc. via `$wgNearMeTables`
@@ -105,11 +105,33 @@ GET /api.php?action=cargonearby&format=json&gscoord=40.4406|-79.9959&gsradius=10
 
 Optional `table` parameter restricts the search to one configured Cargo table.
 
-**Name search (hero box):**
+**Name search (hero box — Cargo query front):**
 
 ```
 GET /api.php?action=cargonearbysearch&format=json&gsearch=Mary&gslimit=20
 ```
+
+Per-source options in `MediaWiki:NearMe-config` / `$wgNearMeTables`:
+
+| Key | Purpose |
+|-----|---------|
+| `searchFields` | Cargo columns OR-matched with `LIKE %query%` (default: `_pageName` + `labelField`) |
+| `displayFields` | Extra columns returned as `fields` and shown under each match |
+
+Example Parishes entry:
+
+```json
+{
+  "table": "Parishes",
+  "coordField": "ParishLocation",
+  "labelField": "ShortName",
+  "label": "Parishes",
+  "searchFields": [ "ShortName", "City", "Dedication", "_pageName" ],
+  "displayFields": [ "City", "Diocese" ]
+}
+```
+
+This is intentionally a **safe subset** of `action=cargoquery` (fixed tables from config, generated WHERE, coordinates required) so anonymous Special:Nearby users can search without the `runcargoqueries` right.
 
 **Response:**
 
