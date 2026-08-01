@@ -219,10 +219,25 @@
 	margin: 0;
 }
 
+/* Persistent aria-live region for filter count / no-match (never torn down on filter). */
 .nearme-search-status {
 	font-size: 0.875rem;
 	color: #54595d;
 	margin: 0 0 0.5rem;
+}
+
+.nearme-search-status[hidden] {
+	display: none;
+}
+
+.nearme-search-status--empty {
+	margin: 1rem 0;
+	padding: 0.75rem 1rem;
+	border-radius: 2px;
+	background: #f8f9fa;
+	border: 1px solid #c8ccd1;
+	color: #54595d;
+	font-size: 1em;
 }
 
 .nearme-message--empty {

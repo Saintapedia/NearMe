@@ -237,7 +237,7 @@
 			'placeholder="' + mw.html.escape( mw.msg( 'nearme-search-placeholder' ) ) + '" ' +
 			'value="' + mw.html.escape( this.filterQuery || '' ) + '" ' +
 			'autocomplete="off" enterkeyhint="done" ' +
-			'aria-controls="nearme-results" />' +
+			'aria-controls="nearme-search-status nearme-results" />' +
 			'</div>';
 	};
 
@@ -275,13 +275,47 @@
 	};
 
 	/**
-	 * Re-render list + map for the current filter without destroying the search input.
+	 * Update the persistent filter status live region.
+	 *
+	 * The status node is never replaced by filter updates — only its text changes —
+	 * so screen readers reliably announce count / no-match feedback (aria-live).
+	 */
+	NearMeApp.prototype.updateSearchStatus = function () {
+		var statusEl = this.root.querySelector( '#nearme-search-status' );
+		if ( !statusEl ) {
+			return;
+		}
+
+		var filtered = this.getFilteredPages();
+		var hasQuery = ( this.filterQuery || '' ).trim() !== '';
+		var text = '';
+
+		if ( hasQuery ) {
+			if ( filtered.length === 0 ) {
+				text = mw.msg( 'nearme-search-no-matches' );
+			} else {
+				text = mw.msg( 'nearme-search-result-count', filtered.length );
+			}
+		}
+
+		// Avoid no-op writes so ATs are not re-notified with identical content.
+		if ( statusEl.textContent !== text ) {
+			statusEl.textContent = text;
+		}
+		statusEl.classList.toggle( 'nearme-search-status--empty', hasQuery && filtered.length === 0 );
+		statusEl.hidden = !text;
+	};
+
+	/**
+	 * Re-render list + map for the current filter without destroying the search input
+	 * or the persistent aria-live status region.
 	 */
 	NearMeApp.prototype.updateFilteredResults = function () {
 		var resultsEl = this.root.querySelector( '#nearme-results' );
 		if ( !resultsEl ) {
 			return;
 		}
+		this.updateSearchStatus();
 		resultsEl.innerHTML = this.renderResultsList();
 		// Filter path: refresh markers without re-fitting the camera each keystroke.
 		this.updateMap( { reuseMap: true, fitBounds: false } );
@@ -294,19 +328,11 @@
 		var self = this;
 		var filtered = this.getFilteredPages();
 		var html = '';
-		var hasQuery = ( this.filterQuery || '' ).trim() !== '';
 
+		// Empty / count messaging lives in #nearme-search-status (persistent live region).
+		// This container only holds the result list so filter updates do not tear down aria-live.
 		if ( filtered.length === 0 ) {
-			html += '<div class="nearme-message nearme-message--empty" role="status" aria-live="polite">' +
-				mw.html.escape( mw.msg( 'nearme-search-no-matches' ) ) +
-				'</div>';
 			return html;
-		}
-
-		if ( hasQuery ) {
-			html += '<div class="nearme-search-status" role="status" aria-live="polite">' +
-				mw.html.escape( mw.msg( 'nearme-search-result-count', filtered.length ) ) +
-				'</div>';
 		}
 
 		html += '<ol class="nearme-list">';
@@ -395,6 +421,10 @@
 				html += '</div>';
 			}
 			html += this.renderSearch();
+			// Persistent live region: textContent is updated in place on filter changes.
+			// Do not put this inside #nearme-results (that subtree is replaced via innerHTML).
+			html += '<div id="nearme-search-status" class="nearme-search-status" ' +
+				'role="status" aria-live="polite" aria-atomic="true" hidden></div>';
 			html += '<div id="nearme-results" class="nearme-results">' +
 				this.renderResultsList() + '</div>';
 		}
@@ -431,19 +461,16 @@
 		this.bindTablePicker();
 		this.bindExamples();
 		this.bindSearch();
+		this.updateSearchStatus();
 		this.updateMap( { reuseMap: false, fitBounds: true } );
 	};
 
 	/**
-	 * @param {Object|boolean} [options]
+	 * @param {Object} [options]
 	 * @param {boolean} [options.reuseMap] Prefer updating an existing map instance.
 	 * @param {boolean} [options.fitBounds] Whether to re-fit the map camera (default true).
-	 * Legacy boolean true/false is treated as reuseMap for call-site compatibility.
 	 */
 	NearMeApp.prototype.updateMap = function ( options ) {
-		if ( typeof options === 'boolean' ) {
-			options = { reuseMap: options };
-		}
 		options = options || {};
 		var preferReuse = !!options.reuseMap;
 		var fitBounds = options.fitBounds !== false;
