@@ -80,6 +80,11 @@
 		this.selectedTable = this.getInitialTable();
 		this.pages = [];
 		this.filterQuery = '';
+		this.nameQuery = '';
+		this.nameMatches = [];
+		this.nameSearching = false;
+		this.nameSearchError = null;
+		this.nameSearchDebounceTimer = null;
 		this.center = null;
 		this.error = null;
 		this.loading = false;
@@ -148,6 +153,201 @@
 		} );
 		html += '</p>';
 		return html;
+	};
+
+	/**
+	 * Name search on the empty hero (find a place, then show nearby from there).
+	 *
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderNameSearch = function () {
+		return '<div class="nearme-name-search">' +
+			'<label class="nearme-name-search__label" for="nearme-name-search">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-label' ) ) +
+			'</label>' +
+			'<p class="nearme-name-search__hint">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-hint' ) ) +
+			'</p>' +
+			'<div class="nearme-name-search__row">' +
+			'<input type="search" id="nearme-name-search" class="nearme-name-search__input" ' +
+			'placeholder="' + mw.html.escape( mw.msg( 'nearme-name-search-placeholder' ) ) + '" ' +
+			'value="' + mw.html.escape( this.nameQuery || '' ) + '" ' +
+			'autocomplete="off" enterkeyhint="search" />' +
+			'<button type="button" class="nearme-button nearme-button--secondary" id="nearme-name-search-btn">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-button' ) ) +
+			'</button>' +
+			'</div>' +
+			'</div>';
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderNameMatches = function () {
+		var self = this;
+		var html = '';
+
+		if ( this.nameSearching ) {
+			html += '<div class="nearme-message nearme-message--loading" role="status">' +
+				mw.html.escape( mw.msg( 'nearme-name-searching' ) ) +
+				'</div>';
+			return html;
+		}
+
+		if ( this.nameSearchError ) {
+			html += '<div class="nearme-message nearme-message--error" role="status">' +
+				mw.html.escape( this.nameSearchError ) +
+				'</div>';
+			return html;
+		}
+
+		if ( !this.nameQuery || this.nameQuery.trim().length < 2 ) {
+			return html;
+		}
+
+		if ( this.nameMatches.length === 0 ) {
+			html += '<div class="nearme-message nearme-message--empty" role="status">' +
+				mw.html.escape( mw.msg( 'nearme-name-search-no-matches' ) ) +
+				'</div>';
+			return html;
+		}
+
+		html += '<ul class="nearme-name-matches" aria-label="' +
+			mw.html.escape( mw.msg( 'nearme-name-search-label' ) ) + '">';
+		this.nameMatches.forEach( function ( match, index ) {
+			var showBadge = self.showTableBadges() && match.tableLabel;
+			html += '<li class="nearme-name-matches__item">';
+			if ( showBadge ) {
+				html += '<span class="nearme-list__badge">' +
+					mw.html.escape( match.tableLabel ) + '</span>';
+			}
+			html += '<button type="button" class="nearme-name-matches__nearby" ' +
+				'data-index="' + index + '">' +
+				mw.html.escape( match.title ) +
+				'<span class="nearme-name-matches__action">' +
+				mw.html.escape( mw.msg( 'nearme-name-search-nearby' ) ) +
+				'</span></button>';
+			html += '<a class="nearme-name-matches__page" href="' +
+				mw.html.escape( match.url ) + '">' +
+				mw.html.escape( mw.msg( 'nearme-name-search-open-page' ) ) +
+				'</a>';
+			html += '</li>';
+		} );
+		html += '</ul>';
+		return html;
+	};
+
+	NearMeApp.prototype.clearNameSearchDebounce = function () {
+		if ( this.nameSearchDebounceTimer ) {
+			clearTimeout( this.nameSearchDebounceTimer );
+			this.nameSearchDebounceTimer = null;
+		}
+	};
+
+	NearMeApp.prototype.bindNameSearch = function () {
+		var self = this;
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var btn = this.root.querySelector( '#nearme-name-search-btn' );
+		if ( !input ) {
+			return;
+		}
+
+		var runSearch = function () {
+			self.clearNameSearchDebounce();
+			self.nameQuery = input.value;
+			self.runNameSearch();
+		};
+
+		input.addEventListener( 'input', function () {
+			self.nameQuery = input.value;
+			self.clearNameSearchDebounce();
+			self.nameSearchDebounceTimer = setTimeout( function () {
+				self.nameSearchDebounceTimer = null;
+				self.runNameSearch();
+			}, 300 );
+		} );
+		input.addEventListener( 'keydown', function ( event ) {
+			if ( event.key === 'Enter' ) {
+				event.preventDefault();
+				runSearch();
+			}
+		} );
+		if ( btn ) {
+			btn.addEventListener( 'click', runSearch );
+		}
+
+		var matchButtons = this.root.querySelectorAll( '.nearme-name-matches__nearby' );
+		matchButtons.forEach( function ( matchBtn ) {
+			matchBtn.addEventListener( 'click', function () {
+				var index = parseInt( matchBtn.getAttribute( 'data-index' ), 10 );
+				var match = self.nameMatches[ index ];
+				if ( match && match.lat != null && match.lon != null ) {
+					self.nameMatches = [];
+					self.nameSearchError = null;
+					self.loadPages( match.lat, match.lon );
+				}
+			} );
+		} );
+	};
+
+	NearMeApp.prototype.runNameSearch = function () {
+		var self = this;
+		var query = ( this.nameQuery || '' ).trim();
+
+		if ( query.length < 2 ) {
+			this.nameMatches = [];
+			this.nameSearching = false;
+			this.nameSearchError = query.length === 0 ? null :
+				mw.msg( 'nearme-name-search-too-short' );
+			this.render();
+			this.focusNameSearch();
+			return;
+		}
+
+		this.nameSearching = true;
+		this.nameSearchError = null;
+		this.error = null;
+		this.render();
+		this.focusNameSearch();
+
+		nearbyApi.searchByName( query, {
+			table: this.selectedTable || undefined,
+			tableLabels: this.tableLabels,
+			limit: 20
+		} ).then( function ( result ) {
+			// Ignore stale responses if the user kept typing.
+			if ( ( self.nameQuery || '' ).trim() !== query ) {
+				return;
+			}
+			self.nameSearching = false;
+			self.nameMatches = result.matches || [];
+			self.render();
+			self.focusNameSearch();
+		}, function () {
+			if ( ( self.nameQuery || '' ).trim() !== query ) {
+				return;
+			}
+			self.nameSearching = false;
+			self.nameMatches = [];
+			self.nameSearchError = mw.msg( 'nearme-error' );
+			self.render();
+			self.focusNameSearch();
+		} );
+	};
+
+	NearMeApp.prototype.focusNameSearch = function () {
+		var input = this.root.querySelector( '#nearme-name-search' );
+		if ( !input ) {
+			return;
+		}
+		// Restore focus after full re-render (hero name search).
+		var len = input.value.length;
+		input.focus();
+		try {
+			input.setSelectionRange( len, len );
+		} catch ( err ) {
+			// Some input types may not support setSelectionRange.
+		}
 	};
 
 	NearMeApp.prototype.bindExamples = function () {
@@ -373,7 +573,9 @@
 		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
 		var hasMap = this.pages.length > 0 && mapsEnabled;
 		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
-		var showHero = this.pages.length === 0 && !this.loading && !this.locating && !this.error;
+		// Show hero (incl. name search) whenever there is no nearby-results list.
+		// Keep it available after location errors so users can still search by name.
+		var showHero = this.pages.length === 0 && !this.loading && !this.locating;
 
 		// Full re-render replaces the DOM; drop any pending filter timer so it
 		// cannot fire against a torn-down results container.
@@ -405,6 +607,8 @@
 			html += '<div class="nearme-hero">' +
 				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
 				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
+				this.renderNameSearch() +
+				this.renderNameMatches() +
 				this.renderExamples() +
 				'</div>';
 		}
@@ -460,6 +664,7 @@
 
 		this.bindTablePicker();
 		this.bindExamples();
+		this.bindNameSearch();
 		this.bindSearch();
 		this.updateSearchStatus();
 		this.updateMap( { reuseMap: false, fitBounds: true } );
@@ -560,7 +765,10 @@
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.filterQuery = '';
+		this.nameMatches = [];
+		this.nameSearchError = null;
 		this.clearFilterDebounce();
+		this.clearNameSearchDebounce();
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
@@ -636,6 +844,7 @@
 		this.pages = [];
 		this.filterQuery = '';
 		this.clearFilterDebounce();
+		this.clearNameSearchDebounce();
 		this.center = null;
 		this.error = null;
 		this.loading = false;

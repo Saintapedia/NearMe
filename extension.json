@@ -1,6 +1,6 @@
 {
 	"name": "NearMe",
-	"version": "0.2.8",
+	"version": "0.2.9",
 	"author": [ "Tom O'Neill", "Saintapedia contributors" ],
 	"url": "https://www.mediawiki.org/wiki/Extension:NearMe",
 	"descriptionmsg": "nearme-desc",
@@ -25,7 +25,8 @@
 		"Nearby": "MediaWiki\\Extension\\NearMe\\SpecialNearby"
 	},
 	"APIModules": {
-		"cargonearby": "MediaWiki\\Extension\\NearMe\\ApiCargoNearby"
+		"cargonearby": "MediaWiki\\Extension\\NearMe\\ApiCargoNearby",
+		"cargonearbysearch": "MediaWiki\\Extension\\NearMe\\ApiCargoNearbySearch"
 	},
 	"ResourceFileModulePaths": {
 		"localBasePath": "",
@@ -60,6 +61,15 @@
 				"nearme-search-placeholder",
 				"nearme-search-no-matches",
 				"nearme-search-result-count",
+				"nearme-name-search-label",
+				"nearme-name-search-hint",
+				"nearme-name-search-placeholder",
+				"nearme-name-search-button",
+				"nearme-name-search-nearby",
+				"nearme-name-search-open-page",
+				"nearme-name-search-no-matches",
+				"nearme-name-search-too-short",
+				"nearme-name-searching",
 				"nearme-privacy-hint",
 				"nearme-try-without-gps",
 				"nearme-distance-km",

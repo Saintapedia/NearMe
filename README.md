@@ -7,8 +7,10 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 ## Features
 
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
-- **Result filter** — search field to narrow the nearby list and map by name
+- **Name search** — find a place by name on the landing screen, then show pages near it (no GPS)
+- **Result filter** — after nearby results load, filter the list and map by name
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
+- **`action=cargonearbysearch` API** for name search of coordinate rows
 - **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
 - **Example location** — “Try without GPS” link for Philadelphia, PA (override via `$wgNearMeExamples` or wiki config)
 - **Multi-table support** — add Saints, Shrines, etc. via `$wgNearMeTables`
@@ -102,6 +104,12 @@ GET /api.php?action=cargonearby&format=json&gscoord=40.4406|-79.9959&gsradius=10
 ```
 
 Optional `table` parameter restricts the search to one configured Cargo table.
+
+**Name search (hero box):**
+
+```
+GET /api.php?action=cargonearbysearch&format=json&gsearch=Mary&gslimit=20
+```
 
 **Response:**
 

@@ -157,6 +157,145 @@ class NearbyQueryService {
 	}
 
 	/**
+	 * Text search on page title and optional label field; only rows with coordinates.
+	 *
+	 * @param array{table:string,coordField:string,labelField?:string} $source
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function searchSource( array $source, string $query, int $limit ): array {
+		$query = trim( $query );
+		if ( $query === '' || mb_strlen( $query ) < 2 ) {
+			return [];
+		}
+		if ( mb_strlen( $query ) > 100 ) {
+			$query = mb_substr( $query, 0, 100 );
+		}
+
+		$table = $source['table'];
+		$coordField = $source['coordField'];
+		$labelField = $source['labelField'] ?? null;
+
+		// Cargo double-quoted string: strip quotes/backslashes so LIKE stays well-formed.
+		$safe = str_replace( [ '"', '\\', "\0", "\n", "\r" ], '', $query );
+		if ( $safe === '' ) {
+			return [];
+		}
+		$like = '%' . $safe . '%';
+
+		$conditions = [ '_pageName LIKE "' . $like . '"' ];
+		if ( $labelField !== null && $labelField !== '' ) {
+			$conditions[] = $labelField . ' LIKE "' . $like . '"';
+		}
+		$where = '(' . implode( ' OR ', $conditions ) . ')';
+
+		$fields = [
+			'_pageName',
+			'_pageID',
+			'_pageNamespace',
+			$coordField,
+			$coordField . '__lat',
+			$coordField . '__lon',
+		];
+		if ( $labelField !== null && $labelField !== '' ) {
+			$fields[] = $labelField;
+		}
+
+		$orderBy = ( $labelField !== null && $labelField !== '' ) ? $labelField : '_pageName';
+
+		$sqlQuery = CargoSQLQuery::newFromValues(
+			$table,
+			implode( ',', $fields ),
+			$where,
+			'',
+			'',
+			'',
+			$orderBy,
+			(string)$limit,
+			''
+		);
+
+		$rows = $sqlQuery->run();
+		$results = [];
+
+		foreach ( $rows as $row ) {
+			$parsed = $this->parseRowCoordinates( $row, $coordField );
+			if ( $parsed === null ) {
+				continue;
+			}
+
+			[ $rowLat, $rowLon ] = $parsed;
+			$pageName = $row['_pageName'] ?? '';
+			if ( $pageName === '' ) {
+				continue;
+			}
+
+			$ns = (int)( $row['_pageNamespace'] ?? 0 );
+			$pageId = (int)( $row['_pageID'] ?? 0 );
+			$title = Title::makeTitleSafe( $ns, $pageName );
+			if ( $title === null ) {
+				continue;
+			}
+			if ( $pageId <= 0 ) {
+				$pageId = $title->getArticleID();
+			}
+
+			$label = $pageName;
+			if ( $labelField !== null && isset( $row[$labelField] ) && $row[$labelField] !== '' ) {
+				$label = (string)$row[$labelField];
+			}
+
+			$results[] = [
+				'pageid' => $pageId,
+				'ns' => $ns,
+				'title' => $title->getPrefixedText(),
+				'lat' => $rowLat,
+				'lon' => $rowLon,
+				'label' => $label,
+				'table' => $table,
+			];
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Search all sources by name, merge, de-dupe by title, truncate.
+	 *
+	 * @param array<int,array{table:string,coordField:string,labelField?:string}> $sources
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function searchAll( array $sources, string $query, int $limit ): array {
+		$merged = [];
+		$seen = [];
+		foreach ( $sources as $source ) {
+			try {
+				$rows = $this->searchSource( $source, $query, $limit );
+			} catch ( \Exception $e ) {
+				wfDebugLog( 'NearMe', 'Cargo name search failed for ' . $source['table'] . ': ' . $e->getMessage() );
+				continue;
+			}
+			foreach ( $rows as $row ) {
+				$key = $row['title'] . '|' . $row['table'];
+				if ( isset( $seen[$key] ) ) {
+					continue;
+				}
+				$seen[$key] = true;
+				$merged[] = $row;
+			}
+		}
+
+		usort( $merged, static function ( $a, $b ) {
+			return strcasecmp( (string)$a['label'], (string)$b['label'] );
+		} );
+
+		if ( count( $merged ) > $limit ) {
+			$merged = array_slice( $merged, 0, $limit );
+		}
+
+		return $merged;
+	}
+
+	/**
 	 * @param array<string,mixed> $row
 	 * @return array{0:float,1:float}|null
 	 */

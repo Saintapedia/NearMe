@@ -89,8 +89,54 @@
 		} );
 	}
 
+	/**
+	 * Name search for places with coordinates (hero search).
+	 *
+	 * @param {string} query
+	 * @param {Object} [options]
+	 * @return {jQuery.Promise}
+	 */
+	function searchByName( query, options ) {
+		options = options || {};
+		var limit = options.limit || 20;
+		var request = {
+			action: 'cargonearbysearch',
+			format: 'json',
+			gsearch: query,
+			gslimit: limit
+		};
+
+		if ( options.table ) {
+			request.table = options.table;
+		}
+
+		return api.get( request ).then( function ( data ) {
+			var rows = ( data && data.cargonearbysearch ) ? data.cargonearbysearch : [];
+			var tableLabels = options.tableLabels || null;
+			return {
+				matches: rows.map( function ( row ) {
+					var title = mw.Title.newFromText( row.title );
+					if ( !title || row.lat == null || row.lon == null ) {
+						return null;
+					}
+					return {
+						url: title.getUrl(),
+						title: row.label || row.title,
+						id: row.title,
+						lat: row.lat,
+						lon: row.lon,
+						table: row.table,
+						tableLabel: ( tableLabels && row.table ) ?
+							( tableLabels[ row.table ] || row.table ) : row.table
+					};
+				} ).filter( Boolean )
+			};
+		} );
+	}
+
 	window.NearMeApi = {
 		getPagesAtCoordinates: getPagesAtCoordinates,
+		searchByName: searchByName,
 		formatDistance: formatDistance,
 		toCard: toCard
 	};

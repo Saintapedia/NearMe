@@ -135,6 +135,120 @@
 	text-align: center;
 }
 
+.nearme-name-search {
+	text-align: left;
+	margin: 1rem auto 0;
+	max-width: 28rem;
+}
+
+.nearme-name-search__label {
+	display: block;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: #202122;
+	margin: 0 0 0.25rem;
+	text-align: left;
+}
+
+.nearme-name-search__hint {
+	font-size: 0.875rem;
+	color: #54595d;
+	margin: 0 0 0.5rem;
+	text-align: left;
+	line-height: 1.4;
+}
+
+.nearme-name-search__row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: stretch;
+}
+
+.nearme-name-search__input {
+	flex: 1 1 auto;
+	min-width: 0;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 1em;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #a2a9b1;
+	border-radius: 2px;
+	background: #fff;
+	color: #202122;
+}
+
+.nearme-name-search__input:focus-visible {
+	outline: 2px solid #36c;
+	outline-offset: -1px;
+	border-color: #36c;
+}
+
+.nearme-button--secondary {
+	flex: 0 0 auto;
+	background: #f8f9fa;
+	border-color: #a2a9b1;
+	color: #202122;
+	white-space: nowrap;
+}
+
+.nearme-name-matches {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+	text-align: left;
+	max-width: 28rem;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.nearme-name-matches__item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.35rem 0.75rem;
+	padding: 0.65rem 0;
+	border-bottom: 1px solid #c8ccd1;
+}
+
+.nearme-name-matches__nearby {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.15rem;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	font-weight: 600;
+	color: #0645ad;
+	text-align: left;
+	cursor: pointer;
+}
+
+.nearme-name-matches__nearby:hover,
+.nearme-name-matches__nearby:focus-visible {
+	text-decoration: underline;
+}
+
+.nearme-name-matches__nearby:focus-visible {
+	outline: 2px solid #36c;
+	outline-offset: 2px;
+}
+
+.nearme-name-matches__action {
+	font-weight: 400;
+	font-size: 0.85em;
+	color: #54595d;
+}
+
+.nearme-name-matches__page {
+	flex: 0 0 auto;
+	font-size: 0.875rem;
+	white-space: nowrap;
+}
+
 .nearme-examples {
 	margin: 0.75rem 0 0;
 }
