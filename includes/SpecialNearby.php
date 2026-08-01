@@ -62,11 +62,13 @@ class SpecialNearby extends SpecialPage {
 
 		$examples = $nearMeConfig['examples'];
 
+		// Page Forms cargo-field autocomplete (action=pfautocomplete) when PF is present.
 		$out->addJsConfigVars( [
 			'NearMeTables' => $sources,
 			'NearMeDefaultRadius' => $nearMeConfig['defaultRadius'],
 			'NearMeDefaultLimit' => $nearMeConfig['defaultLimit'],
 			'NearMeExamples' => $examples,
+			'wgNearMePageFormsAutocomplete' => $registry->isLoaded( 'PageForms' ),
 		] );
 
 		$html = Html::rawElement(

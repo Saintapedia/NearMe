@@ -6,6 +6,7 @@
       "table": "Parishes",
       "coordField": "ParishLocation",
       "labelField": "ShortName",
+      "autocompleteField": "ShortName",
       "label": "Parishes",
       "default": true,
       "searchFields": [ "ShortName", "City", "Dedication", "_pageName" ],

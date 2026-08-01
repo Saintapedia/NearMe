@@ -161,18 +161,25 @@
 	 * @return {string}
 	 */
 	NearMeApp.prototype.renderNameSearch = function () {
+		var usePf = mw.config.get( 'wgNearMePageFormsAutocomplete', false );
+		var hintKey = usePf ? 'nearme-name-search-hint-pf' : 'nearme-name-search-hint';
 		return '<div class="nearme-name-search">' +
 			'<label class="nearme-name-search__label" for="nearme-name-search">' +
 			mw.html.escape( mw.msg( 'nearme-name-search-label' ) ) +
 			'</label>' +
 			'<p class="nearme-name-search__hint">' +
-			mw.html.escape( mw.msg( 'nearme-name-search-hint' ) ) +
+			mw.html.escape( mw.msg( hintKey ) ) +
 			'</p>' +
 			'<div class="nearme-name-search__row">' +
+			'<div class="nearme-name-search__combo">' +
 			'<input type="search" id="nearme-name-search" class="nearme-name-search__input" ' +
 			'placeholder="' + mw.html.escape( mw.msg( 'nearme-name-search-placeholder' ) ) + '" ' +
 			'value="' + mw.html.escape( this.nameQuery || '' ) + '" ' +
-			'autocomplete="off" enterkeyhint="search" />' +
+			'autocomplete="off" enterkeyhint="search" ' +
+			'role="combobox" aria-autocomplete="list" aria-expanded="false" ' +
+			'aria-controls="nearme-name-suggestions" />' +
+			'<ul id="nearme-name-suggestions" class="nearme-name-suggestions" role="listbox" hidden></ul>' +
+			'</div>' +
 			'<button type="button" class="nearme-button nearme-button--secondary" id="nearme-name-search-btn">' +
 			mw.html.escape( mw.msg( 'nearme-name-search-button' ) ) +
 			'</button>' +
@@ -251,12 +258,14 @@
 		var self = this;
 		var input = this.root.querySelector( '#nearme-name-search' );
 		var btn = this.root.querySelector( '#nearme-name-search-btn' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
 		if ( !input ) {
 			return;
 		}
 
 		var runSearch = function () {
 			self.clearNameSearchDebounce();
+			self.hideNameSuggestions();
 			self.nameQuery = input.value;
 			self.runNameSearch();
 		};
@@ -264,16 +273,32 @@
 		input.addEventListener( 'input', function () {
 			self.nameQuery = input.value;
 			self.clearNameSearchDebounce();
+			// Live combobox suggestions (Page Forms pfautocomplete / Cargo autocomplete).
+			// Full multi-field Cargo resolve still runs on Search / Enter.
 			self.nameSearchDebounceTimer = setTimeout( function () {
 				self.nameSearchDebounceTimer = null;
-				self.runNameSearch();
-			}, 300 );
+				self.refreshNameSuggestions();
+			}, 200 );
 		} );
 		input.addEventListener( 'keydown', function ( event ) {
 			if ( event.key === 'Enter' ) {
 				event.preventDefault();
 				runSearch();
+			} else if ( event.key === 'Escape' ) {
+				self.hideNameSuggestions();
+			} else if ( event.key === 'ArrowDown' && list && !list.hidden ) {
+				event.preventDefault();
+				var first = list.querySelector( 'button' );
+				if ( first ) {
+					first.focus();
+				}
 			}
+		} );
+		input.addEventListener( 'blur', function () {
+			// Delay so suggestion click can fire first.
+			setTimeout( function () {
+				self.hideNameSuggestions();
+			}, 150 );
 		} );
 		if ( btn ) {
 			btn.addEventListener( 'click', runSearch );
@@ -293,8 +318,99 @@
 		} );
 	};
 
-	NearMeApp.prototype.runNameSearch = function () {
+	/**
+	 * Update the PF/Cargo autocomplete dropdown without a full re-render.
+	 */
+	NearMeApp.prototype.refreshNameSuggestions = function () {
 		var self = this;
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
+		if ( !input || !list ) {
+			return;
+		}
+
+		var query = ( this.nameQuery || '' ).trim();
+		if ( query.length < 2 ) {
+			this.hideNameSuggestions();
+			return;
+		}
+
+		var requestId = ( this.nameSuggestRequestId || 0 ) + 1;
+		this.nameSuggestRequestId = requestId;
+
+		nearbyApi.suggestNames( query, {
+			sources: this.sources,
+			table: this.selectedTable || undefined,
+			tableLabels: this.tableLabels
+		} ).then( function ( result ) {
+			if ( requestId !== self.nameSuggestRequestId ) {
+				return;
+			}
+			var suggestions = result.suggestions || [];
+			if ( suggestions.length === 0 ) {
+				self.hideNameSuggestions();
+				return;
+			}
+
+			var html = '';
+			suggestions.forEach( function ( item, index ) {
+				html += '<li role="option">' +
+					'<button type="button" class="nearme-name-suggestions__btn" data-index="' +
+					index + '">' + mw.html.escape( item.title );
+				if ( self.showTableBadges() && item.tableLabel ) {
+					html += '<span class="nearme-name-suggestions__meta">' +
+						mw.html.escape( item.tableLabel ) + '</span>';
+				}
+				html += '</button></li>';
+			} );
+			list.innerHTML = html;
+			list.hidden = false;
+			input.setAttribute( 'aria-expanded', 'true' );
+
+			// Capture list for the click handlers below.
+			self._nameSuggestions = suggestions;
+			list.querySelectorAll( '.nearme-name-suggestions__btn' ).forEach( function ( btn ) {
+				btn.addEventListener( 'mousedown', function ( event ) {
+					// mousedown before blur hides the list.
+					event.preventDefault();
+					var idx = parseInt( btn.getAttribute( 'data-index' ), 10 );
+					var picked = self._nameSuggestions && self._nameSuggestions[ idx ];
+					if ( !picked ) {
+						return;
+					}
+					input.value = picked.title;
+					self.nameQuery = picked.title;
+					self.hideNameSuggestions();
+					self.runNameSearch( { preferNearbyIfSingle: true } );
+				} );
+			} );
+		}, function () {
+			if ( requestId === self.nameSuggestRequestId ) {
+				self.hideNameSuggestions();
+			}
+		} );
+	};
+
+	NearMeApp.prototype.hideNameSuggestions = function () {
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
+		if ( list ) {
+			list.hidden = true;
+			list.innerHTML = '';
+		}
+		if ( input ) {
+			input.setAttribute( 'aria-expanded', 'false' );
+		}
+		this._nameSuggestions = [];
+	};
+
+	/**
+	 * @param {Object} [options]
+	 * @param {boolean} [options.preferNearbyIfSingle] If one match, open nearby immediately.
+	 */
+	NearMeApp.prototype.runNameSearch = function ( options ) {
+		var self = this;
+		options = options || {};
 		var query = ( this.nameQuery || '' ).trim();
 
 		if ( query.length < 2 ) {
@@ -324,6 +440,12 @@
 			}
 			self.nameSearching = false;
 			self.nameMatches = result.matches || [];
+			if ( options.preferNearbyIfSingle && self.nameMatches.length === 1 ) {
+				var only = self.nameMatches[ 0 ];
+				self.nameMatches = [];
+				self.loadPages( only.lat, only.lon );
+				return;
+			}
 			self.render();
 			self.focusNameSearch();
 		}, function () {

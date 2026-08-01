@@ -250,6 +250,14 @@ class NearMeConfigService {
 				$source['labelField'] = (string)$entry['labelField'];
 			}
 
+			// Optional single field for Page Forms / Cargo autocomplete (combobox values).
+			if ( isset( $entry['autocompleteField'] ) && $entry['autocompleteField'] !== '' ) {
+				$ac = trim( (string)$entry['autocompleteField'] );
+				if ( preg_match( '/^_?[A-Za-z][A-Za-z0-9_]*$/', $ac ) ) {
+					$source['autocompleteField'] = $ac;
+				}
+			}
+
 			if ( isset( $entry['label'] ) && $entry['label'] !== '' ) {
 				$source['label'] = (string)$entry['label'];
 			} else {

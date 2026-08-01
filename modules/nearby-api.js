@@ -90,7 +90,139 @@
 	}
 
 	/**
+	 * Autocomplete suggestions — same stack as Page Forms when available
+	 * (action=pfautocomplete + cargo_table/cargo_field), else Cargo's
+	 * action=cargoautocomplete.
+	 *
+	 * @param {string} query
+	 * @param {Object} [options]
+	 * @param {Array.<Object>} [options.sources]
+	 * @param {string} [options.table]
+	 * @param {Object.<string,string>} [options.tableLabels]
+	 * @return {jQuery.Promise} resolves to { suggestions: Array.<{title:string,table?:string,tableLabel?:string}> }
+	 */
+	function suggestNames( query, options ) {
+		options = options || {};
+		query = ( query || '' ).trim();
+		if ( query.length < 2 ) {
+			return $.Deferred().resolve( { suggestions: [] } ).promise();
+		}
+
+		var sources = options.sources || mw.config.get( 'NearMeTables', [] );
+		var tableFilter = options.table || null;
+		var tableLabels = options.tableLabels || null;
+		var usePageForms = !!mw.config.get( 'wgNearMePageFormsAutocomplete', false );
+
+		var targets = sources.filter( function ( source ) {
+			if ( tableFilter && source.table !== tableFilter ) {
+				return false;
+			}
+			return !!getAutocompleteField( source );
+		} );
+
+		if ( targets.length === 0 ) {
+			return $.Deferred().resolve( { suggestions: [] } ).promise();
+		}
+
+		var requests = targets.map( function ( source ) {
+			var field = getAutocompleteField( source );
+			var request;
+			if ( usePageForms ) {
+				request = {
+					action: 'pfautocomplete',
+					format: 'json',
+					cargo_table: source.table,
+					cargo_field: field,
+					substr: query
+				};
+			} else {
+				request = {
+					action: 'cargoautocomplete',
+					format: 'json',
+					table: source.table,
+					field: field,
+					substr: query
+				};
+			}
+
+			return api.get( request ).then( function ( data ) {
+				var raw = [];
+				if ( usePageForms && data && data.pfautocomplete ) {
+					raw = data.pfautocomplete.map( function ( row ) {
+						return row.displaytitle || row.title;
+					} );
+				} else if ( data && data.cargoautocomplete ) {
+					raw = data.cargoautocomplete;
+				}
+				return raw.filter( Boolean ).map( function ( title ) {
+					return {
+						title: title,
+						table: source.table,
+						tableLabel: tableLabels ?
+							( tableLabels[ source.table ] || source.label || source.table ) :
+							( source.label || source.table )
+					};
+				} );
+			}, function () {
+				return [];
+			} );
+		} );
+
+		return $.when.apply( $, requests ).then( function () {
+			var lists = requests.length === 1 ?
+				[ arguments[ 0 ] ] :
+				Array.prototype.slice.call( arguments );
+			var seen = {};
+			var suggestions = [];
+			lists.forEach( function ( list ) {
+				( list || [] ).forEach( function ( item ) {
+					var key = ( item.title || '' ).toLowerCase();
+					if ( !key || seen[ key ] ) {
+						return;
+					}
+					seen[ key ] = true;
+					suggestions.push( item );
+				} );
+			} );
+			// Prefer shorter titles first (Page Forms does this for UX).
+			suggestions.sort( function ( a, b ) {
+				return a.title.length - b.title.length ||
+					a.title.localeCompare( b.title );
+			} );
+			return { suggestions: suggestions.slice( 0, 15 ) };
+		} );
+	}
+
+	/**
+	 * Field used for Page Forms / Cargo autocomplete (combobox values).
+	 *
+	 * @param {Object} source
+	 * @return {string|null}
+	 */
+	function getAutocompleteField( source ) {
+		if ( !source ) {
+			return null;
+		}
+		if ( source.autocompleteField ) {
+			return source.autocompleteField;
+		}
+		if ( source.labelField && source.labelField !== '_pageName' ) {
+			return source.labelField;
+		}
+		if ( source.searchFields && source.searchFields.length ) {
+			var i;
+			for ( i = 0; i < source.searchFields.length; i++ ) {
+				if ( source.searchFields[ i ] && source.searchFields[ i ] !== '_pageName' ) {
+					return source.searchFields[ i ];
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
 	 * Name search for places with coordinates (hero search).
+	 * Full Cargo multi-field query via action=cargonearbysearch.
 	 *
 	 * @param {string} query
 	 * @param {Object} [options]
@@ -145,6 +277,8 @@
 	window.NearMeApi = {
 		getPagesAtCoordinates: getPagesAtCoordinates,
 		searchByName: searchByName,
+		suggestNames: suggestNames,
+		getAutocompleteField: getAutocompleteField,
 		formatDistance: formatDistance,
 		toCard: toCard
 	};

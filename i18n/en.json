@@ -16,6 +16,7 @@
 	"nearme-search-result-count": "$1 {{PLURAL:$1|result|results}}",
 	"nearme-name-search-label": "Search by name",
 	"nearme-name-search-hint": "Find a place, then show pages near it — no GPS needed.",
+	"nearme-name-search-hint-pf": "Suggestions use the same Cargo autocomplete as Page Forms. Pick one or press Search for a fuller match list.",
 	"nearme-name-search-placeholder": "Parish or place name…",
 	"nearme-name-search-button": "Search",
 	"nearme-name-search-nearby": "Show nearby",

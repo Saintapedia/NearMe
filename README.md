@@ -8,6 +8,7 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 
 - **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
 - **Name search (Cargo query front)** — landing-screen search over configured Cargo fields, then show pages near a match (no GPS; no `runcargoqueries` right required)
+- **Page Forms autocomplete** — when Page Forms is installed, typeahead uses the same `action=pfautocomplete` Cargo-field path as form fields (falls back to Cargo `cargoautocomplete`)
 - **Result filter** — after nearby results load, filter the list and map by name
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
 - **`action=cargonearbysearch` API** — constrained Cargo-style name query for rows with coordinates
@@ -115,8 +116,11 @@ Per-source options in `MediaWiki:NearMe-config` / `$wgNearMeTables`:
 
 | Key | Purpose |
 |-----|---------|
-| `searchFields` | Cargo columns OR-matched with `LIKE %query%` (default: `_pageName` + `labelField`) |
+| `searchFields` | Cargo columns OR-matched with `LIKE %query%` on Search (default: `_pageName` + `labelField`) |
 | `displayFields` | Extra columns returned as `fields` and shown under each match |
+| `autocompleteField` | Single Cargo field for typeahead (`pfautocomplete` / `cargoautocomplete`; default: `labelField`) |
+
+**Page Forms integration:** if Extension:PageForms is loaded, the hero combobox suggestions call `action=pfautocomplete&cargo_table=…&cargo_field=…` — the same API form inputs use. Choosing a suggestion (or pressing Search) still resolves coordinates via `cargonearbysearch` so Nearby can center on that place.
 
 Example Parishes entry:
 
