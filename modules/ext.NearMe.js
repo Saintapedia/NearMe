@@ -79,6 +79,7 @@
 		this.tableLabels = buildTableLabels( this.sources );
 		this.selectedTable = this.getInitialTable();
 		this.pages = [];
+		this.filterQuery = '';
 		this.center = null;
 		this.error = null;
 		this.loading = false;
@@ -87,6 +88,8 @@
 		this.loadInFlight = null;
 		this.mapView = null;
 		this.mapCollapsed = false;
+		this.filterDebounceTimer = null;
+		this.mapUpdateGeneration = 0;
 		this.render();
 		try {
 			this.bindRoutes();
@@ -200,6 +203,159 @@
 	};
 
 	/**
+	 * @return {Array.<Object>}
+	 */
+	NearMeApp.prototype.getFilteredPages = function () {
+		var query = ( this.filterQuery || '' ).trim().toLowerCase();
+		if ( !query ) {
+			return this.pages;
+		}
+		return this.pages.filter( function ( page ) {
+			// Match display label and underlying wiki title (ShortName vs full page name).
+			var title = ( page.title || '' ).toLowerCase();
+			var id = ( page.id || '' ).toLowerCase();
+			var tableLabel = ( page.tableLabel || '' ).toLowerCase();
+			return title.indexOf( query ) !== -1 ||
+				id.indexOf( query ) !== -1 ||
+				tableLabel.indexOf( query ) !== -1;
+		} );
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderSearch = function () {
+		if ( this.pages.length === 0 ) {
+			return '';
+		}
+
+		return '<div class="nearme-search">' +
+			'<label class="nearme-search__label" for="nearme-search">' +
+			mw.html.escape( mw.msg( 'nearme-search-label' ) ) +
+			'</label>' +
+			'<input type="search" id="nearme-search" class="nearme-search__input" ' +
+			'placeholder="' + mw.html.escape( mw.msg( 'nearme-search-placeholder' ) ) + '" ' +
+			'value="' + mw.html.escape( this.filterQuery || '' ) + '" ' +
+			'autocomplete="off" enterkeyhint="done" ' +
+			'aria-controls="nearme-search-status nearme-results" />' +
+			'</div>';
+	};
+
+	NearMeApp.prototype.clearFilterDebounce = function () {
+		if ( this.filterDebounceTimer ) {
+			clearTimeout( this.filterDebounceTimer );
+			this.filterDebounceTimer = null;
+		}
+	};
+
+	NearMeApp.prototype.bindSearch = function () {
+		var self = this;
+		var input = this.root.querySelector( '#nearme-search' );
+		if ( !input ) {
+			return;
+		}
+		// Coalesce rapid keystrokes so list/map work is not repeated per character.
+		var FILTER_DEBOUNCE_MS = 150;
+		input.addEventListener( 'input', function () {
+			self.filterQuery = input.value;
+			self.clearFilterDebounce();
+			self.filterDebounceTimer = setTimeout( function () {
+				self.filterDebounceTimer = null;
+				self.updateFilteredResults();
+			}, FILTER_DEBOUNCE_MS );
+		} );
+		input.addEventListener( 'keydown', function ( event ) {
+			// Live filter only — avoid browser “search” submit quirks on Enter.
+			if ( event.key === 'Enter' ) {
+				event.preventDefault();
+				self.clearFilterDebounce();
+				self.updateFilteredResults();
+			}
+		} );
+	};
+
+	/**
+	 * Update the persistent filter status live region.
+	 *
+	 * The status node is never replaced by filter updates — only its text changes —
+	 * so screen readers reliably announce count / no-match feedback (aria-live).
+	 */
+	NearMeApp.prototype.updateSearchStatus = function () {
+		var statusEl = this.root.querySelector( '#nearme-search-status' );
+		if ( !statusEl ) {
+			return;
+		}
+
+		var filtered = this.getFilteredPages();
+		var hasQuery = ( this.filterQuery || '' ).trim() !== '';
+		var text = '';
+
+		if ( hasQuery ) {
+			if ( filtered.length === 0 ) {
+				text = mw.msg( 'nearme-search-no-matches' );
+			} else {
+				text = mw.msg( 'nearme-search-result-count', filtered.length );
+			}
+		}
+
+		// Avoid no-op writes so ATs are not re-notified with identical content.
+		if ( statusEl.textContent !== text ) {
+			statusEl.textContent = text;
+		}
+		statusEl.classList.toggle( 'nearme-search-status--empty', hasQuery && filtered.length === 0 );
+		statusEl.hidden = !text;
+	};
+
+	/**
+	 * Re-render list + map for the current filter without destroying the search input
+	 * or the persistent aria-live status region.
+	 */
+	NearMeApp.prototype.updateFilteredResults = function () {
+		var resultsEl = this.root.querySelector( '#nearme-results' );
+		if ( !resultsEl ) {
+			return;
+		}
+		this.updateSearchStatus();
+		resultsEl.innerHTML = this.renderResultsList();
+		// Filter path: refresh markers without re-fitting the camera each keystroke.
+		this.updateMap( { reuseMap: true, fitBounds: false } );
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderResultsList = function () {
+		var self = this;
+		var filtered = this.getFilteredPages();
+		var html = '';
+
+		// Empty / count messaging lives in #nearme-search-status (persistent live region).
+		// This container only holds the result list so filter updates do not tear down aria-live.
+		if ( filtered.length === 0 ) {
+			return html;
+		}
+
+		html += '<ol class="nearme-list">';
+		filtered.forEach( function ( page ) {
+			var showBadge = self.showTableBadges() && page.tableLabel;
+			html += '<li class="nearme-list__item' +
+				( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
+			if ( showBadge ) {
+				html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
+			}
+			html += '<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
+				mw.html.escape( page.title ) +
+				'</a>';
+			if ( page.proximity ) {
+				html += '<span class="nearme-list__distance">' + mw.html.escape( page.proximity ) + '</span>';
+			}
+			html += '</li>';
+		} );
+		html += '</ol>';
+		return html;
+	};
+
+	/**
 	 * @param {string|null} table
 	 */
 	NearMeApp.prototype.setSelectedTable = function ( table ) {
@@ -218,6 +374,10 @@
 		var hasMap = this.pages.length > 0 && mapsEnabled;
 		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
 		var showHero = this.pages.length === 0 && !this.loading && !this.locating && !this.error;
+
+		// Full re-render replaces the DOM; drop any pending filter timer so it
+		// cannot fire against a torn-down results container.
+		this.clearFilterDebounce();
 
 		if ( this.mapView ) {
 			this.mapView.destroy();
@@ -260,23 +420,13 @@
 					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
 				html += '</div>';
 			}
-			html += '<ol class="nearme-list">';
-			this.pages.forEach( function ( page ) {
-				var showBadge = self.showTableBadges() && page.tableLabel;
-				html += '<li class="nearme-list__item' +
-					( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
-				if ( showBadge ) {
-					html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
-				}
-				html += '<a class="nearme-list__link" href="' + mw.html.escape( page.url ) + '">' +
-					mw.html.escape( page.title ) +
-					'</a>';
-				if ( page.proximity ) {
-					html += '<span class="nearme-list__distance">' + mw.html.escape( page.proximity ) + '</span>';
-				}
-				html += '</li>';
-			} );
-			html += '</ol>';
+			html += this.renderSearch();
+			// Persistent live region: textContent is updated in place on filter changes.
+			// Do not put this inside #nearme-results (that subtree is replaced via innerHTML).
+			html += '<div id="nearme-search-status" class="nearme-search-status" ' +
+				'role="status" aria-live="polite" aria-atomic="true" hidden></div>';
+			html += '<div id="nearme-results" class="nearme-results">' +
+				this.renderResultsList() + '</div>';
 		}
 
 		if ( showHero ) {
@@ -310,10 +460,21 @@
 
 		this.bindTablePicker();
 		this.bindExamples();
-		this.updateMap();
+		this.bindSearch();
+		this.updateSearchStatus();
+		this.updateMap( { reuseMap: false, fitBounds: true } );
 	};
 
-	NearMeApp.prototype.updateMap = function () {
+	/**
+	 * @param {Object} [options]
+	 * @param {boolean} [options.reuseMap] Prefer updating an existing map instance.
+	 * @param {boolean} [options.fitBounds] Whether to re-fit the map camera (default true).
+	 */
+	NearMeApp.prototype.updateMap = function ( options ) {
+		options = options || {};
+		var preferReuse = !!options.reuseMap;
+		var fitBounds = options.fitBounds !== false;
+
 		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
 			return;
 		}
@@ -328,21 +489,41 @@
 		}
 
 		var self = this;
-		function initMap() {
-			if ( !window.NearMeMap ) {
+		// Bump generation so late-resolving map module loads cannot overwrite a newer filter state.
+		this.mapUpdateGeneration = ( this.mapUpdateGeneration || 0 ) + 1;
+		var generation = this.mapUpdateGeneration;
+
+		function applyMap() {
+			if ( generation !== self.mapUpdateGeneration ) {
 				return;
 			}
+			if ( !window.NearMeMap || !self.center ) {
+				return;
+			}
+			// Read filter state at apply time so async map loads cannot use a stale snapshot.
+			var filtered = self.getFilteredPages();
+
+			if ( preferReuse && self.mapView ) {
+				// Existing map: honor fitBounds (false while typing so the camera does not jump).
+				self.mapView.update( self.center, filtered, { fitBounds: fitBounds } );
+				return;
+			}
+
+			// Full render path destroys the map before innerHTML; recreate on a fresh container.
+			// Always fit on first create — a filter keystroke may win the async race with
+			// fitBounds:false before the map instance exists, leaving Leaflet at world view.
 			if ( self.mapView ) {
 				self.mapView.destroy();
+				self.mapView = null;
 			}
 			self.mapView = new window.NearMeMap( mapEl );
-			self.mapView.update( self.center, self.pages );
+			self.mapView.update( self.center, filtered, { fitBounds: true } );
 		}
 
 		if ( window.NearMeMap ) {
-			initMap();
+			applyMap();
 		} else if ( mw.loader.getState( 'ext.NearMe.maps' ) !== null ) {
-			mw.loader.using( 'ext.NearMe.maps' ).then( initMap );
+			mw.loader.using( 'ext.NearMe.maps' ).then( applyMap );
 		}
 	};
 
@@ -352,6 +533,8 @@
 			this.error += ' ' + mw.msg( 'nearme-error-guidance' );
 		}
 		this.pages = [];
+		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.loading = false;
 		this.locating = false;
 		this.render();
@@ -376,6 +559,8 @@
 		this.loading = true;
 		this.showButtonDisabled = true;
 		this.pages = [];
+		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
@@ -449,6 +634,8 @@
 
 	NearMeApp.prototype.clearResults = function () {
 		this.pages = [];
+		this.filterQuery = '';
+		this.clearFilterDebounce();
 		this.center = null;
 		this.error = null;
 		this.loading = false;
