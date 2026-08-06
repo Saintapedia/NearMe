@@ -15,6 +15,9 @@
 	"AutoloadNamespaces": {
 		"MediaWiki\\Extension\\NearMe\\": "includes/"
 	},
+	"ExtensionFunctions": [
+		"MediaWiki\\Extension\\NearMe\\NearMeHooks::onExtensionFunction"
+	],
 	"MessagesDirs": {
 		"NearMe": [ "i18n" ]
 	},
@@ -22,12 +25,15 @@
 		"NearMeAliases": "NearMe.alias.php"
 	},
 	"SpecialPages": {
-		"Nearby": "MediaWiki\\Extension\\NearMe\\SpecialNearby"
+		"NearMe": "MediaWiki\\Extension\\NearMe\\SpecialNearby"
 	},
+
 	"APIModules": {
 		"cargonearby": "MediaWiki\\Extension\\NearMe\\ApiCargoNearby",
-		"cargonearbysearch": "MediaWiki\\Extension\\NearMe\\ApiCargoNearbySearch"
+		"cargonearbysearch": "MediaWiki\\Extension\\NearMe\\ApiCargoNearbySearch",
+		"cargonearbygeocode": "MediaWiki\\Extension\\NearMe\\ApiCargoNearbyGeocode"
 	},
+
 	"ResourceFileModulePaths": {
 		"localBasePath": "",
 		"remoteExtPath": "NearMe"
@@ -71,6 +77,8 @@
 				"nearme-name-search-no-matches",
 				"nearme-name-search-too-short",
 				"nearme-name-searching",
+				"nearme-name-search-place-badge",
+				"nearme-name-search-wiki-badge",
 				"nearme-privacy-hint",
 				"nearme-try-without-gps",
 				"nearme-distance-km",
@@ -86,14 +94,19 @@
 				"nearme-locating",
 				"nearme-loading",
 				"nearme-map-label",
+				"nearme-map-label-search",
+				"nearme-map-heading",
+				"nearme-map-show-on-map",
 				"nearme-map-toggle"
 			],
 			"config": [
 				"NearMeDefaultRadius",
 				"NearMeDefaultLimit",
-				"NearMeTables"
+				"NearMeTables",
+				"NearMeGeocodeEnabled"
 			]
 		},
+
 		"ext.NearMe.maps": {
 			"scripts": [
 				"modules/nearby-map.js"
@@ -103,7 +116,8 @@
 				"ext.maps.leaflet.markercluster"
 			],
 			"messages": [
-				"nearme-map-you-are-here"
+				"nearme-map-you-are-here",
+				"nearme-name-search-nearby"
 			]
 		}
 	},
@@ -145,7 +159,7 @@
 					"lon": -75.1652
 				}
 			],
-			"description": "Default 'Try without GPS' location links on Special:Nearby. Overridden by a non-empty examples array in MediaWiki:NearMe-config. Set to [] to hide examples when no wiki list is set."
+			"description": "Default 'Try without GPS' location links on Special:NearMe. Overridden by a non-empty examples array in MediaWiki:NearMe-config. Set to [] to hide examples when no wiki list is set."
 		},
 		"NearMeConfigPage": {
 			"value": "NearMe-config",
@@ -154,6 +168,22 @@
 		"NearMeIntroPage": {
 			"value": "",
 			"description": "Optional MediaWiki page name (e.g. NearMe-intro) with wikitext shown above the Nearby app. Leave empty to show no intro."
+		},
+		"NearMeGeocodeEnabled": {
+			"value": true,
+			"description": "When true, hero name search also geocodes free-form places (cities, addresses) via Nominatim so users are not limited to Cargo table rows."
+		},
+		"NearMeGeocodeUrl": {
+			"value": "https://nominatim.openstreetmap.org",
+			"description": "Base URL for the Nominatim-compatible geocoder used by action=cargonearbygeocode."
+		},
+		"NearMeGeocodeCountryCodes": {
+			"value": "",
+			"description": "Optional comma-separated ISO 3166-1 alpha-2 country codes to bias Nominatim (e.g. 'us'). Empty = worldwide."
+		},
+		"NearMeGeocodeMaxLimit": {
+			"value": 10,
+			"description": "Maximum number of free-form geocode suggestions per request."
 		}
 	},
 	"manifest_version": 2

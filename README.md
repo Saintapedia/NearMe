@@ -1,12 +1,12 @@
 # NearMe
 
-A [MediaWiki](https://www.mediawiki.org/) extension that provides **Special:Nearby** — location-based page discovery powered by [Cargo](https://www.mediawiki.org/wiki/Extension:Cargo) `Coordinates` fields and the native `NEAR` query command.
+A [MediaWiki](https://www.mediawiki.org/) extension that provides **Special:NearMe** — location-based page discovery powered by [Cargo](https://www.mediawiki.org/wiki/Extension:Cargo) `Coordinates` fields and the native `NEAR` query command.
 
 Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative to [Extension:NearbyPages](https://www.mediawiki.org/wiki/Extension:NearbyPages), which requires GeoData.
 
 ## Features
 
-- **Special:Nearby** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
+- **Special:NearMe** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
 - **Name search (Cargo query front)** — landing-screen search over configured Cargo fields, then show pages near a match (no GPS; no `runcargoqueries` right required)
 - **Page Forms autocomplete** — when Page Forms is installed, typeahead uses the same `action=pfautocomplete` Cargo-field path as form fields (falls back to Cargo `cargoautocomplete`)
 - **Result filter** — after nearby results load, filter the list and map by name
@@ -93,7 +93,7 @@ Cargo tables must declare a field of type `Coordinates`.
 
 4. Run `php maintenance/update.php` and verify at [Special:Version](Special:Version).
 
-5. Open [Special:Nearby](Special:Nearby). Use **Try without GPS: Philadelphia, PA** or
+5. Open [Special:NearMe](Special:NearMe). Use **Try without GPS: Philadelphia, PA** or
    click **Show nearby parishes**.
 
    Parishes without `ParishLocation` coordinates are excluded automatically.
@@ -135,7 +135,7 @@ Example Parishes entry:
 }
 ```
 
-This is intentionally a **safe subset** of `action=cargoquery` (fixed tables from config, generated WHERE, coordinates required) so anonymous Special:Nearby users can search without the `runcargoqueries` right.
+This is intentionally a **safe subset** of `action=cargoquery` (fixed tables from config, generated WHERE, coordinates required) so anonymous Special:NearMe users can search without the `runcargoqueries` right. User input is sanitized for Cargo double-quoted strings and LIKE wildcards (`%` / `_`) are escaped for literal substring match. The endpoint is rate-limited via `$wgRateLimits['nearme-search']` (defaults: 30/min anon IP) and also participates in Cargo’s `cargo-query` limiter when that is configured.
 
 **Response:**
 
@@ -159,7 +159,7 @@ This is intentionally a **safe subset** of `action=cargoquery` (fixed tables fro
 ## Architecture
 
 ```
-Special:Nearby (JS)
+Special:NearMe (JS)
     → action=cargonearby
         → NearbyQueryService
             → CargoSQLQuery (WHERE Coordinates NEAR (lat, lon, N km))

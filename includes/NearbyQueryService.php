@@ -160,7 +160,7 @@ class NearbyQueryService {
 	 * Cargo-query front: LIKE over configured search fields; only rows with coordinates.
 	 *
 	 * Equivalent in spirit to action=cargoquery with a generated tables/fields/where,
-	 * but does not require the runcargoqueries right (anonymous Special:Nearby use).
+	 * but does not require the runcargoqueries right (anonymous Special:NearMe use).
 	 *
 	 * @param array{
 	 *   table:string,
@@ -186,12 +186,12 @@ class NearbyQueryService {
 		$searchFields = $this->resolveSearchFields( $source );
 		$displayFields = $this->resolveDisplayFields( $source );
 
-		// Cargo double-quoted string: strip quotes/backslashes so LIKE stays well-formed.
-		$safe = str_replace( [ '"', '\\', "\0", "\n", "\r" ], '', $query );
-		if ( $safe === '' ) {
+		// Build a Cargo double-quoted LIKE pattern for literal substring match.
+		// Field names are config-validated elsewhere; only $query is untrusted input.
+		$like = $this->buildLiteralLikePattern( $query );
+		if ( $like === null ) {
 			return [];
 		}
-		$like = '%' . $safe . '%';
 
 		$conditions = [];
 		foreach ( $searchFields as $field ) {
@@ -283,15 +283,52 @@ class NearbyQueryService {
 			if ( $display !== [] ) {
 				$result['fields'] = $display;
 			}
-			// Debugging / advanced UX: the Cargo WHERE this row satisfied.
-			$result['cargo'] = [
-				'tables' => $table,
-				'where' => $where,
-			];
 			$results[] = $result;
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Sanitize user text for a Cargo double-quoted LIKE pattern with literal
+	 * substring semantics (leading/trailing % only; user %/_ are escaped).
+	 *
+	 * CargoSQLQuery takes a string WHERE clause, so we cannot bind parameters.
+	 * Defense in depth:
+	 * - Strip characters that could break out of a double-quoted Cargo string
+	 *   (ASCII/Unicode quotes, backslashes, C0 controls)
+	 * - Escape SQL LIKE wildcards % and _ so they match literally
+	 * - Truncate (caller already caps at 100; re-check after stripping)
+	 *
+	 * @return string|null Pattern including surrounding % wildcards, or null if empty
+	 */
+	private function buildLiteralLikePattern( string $query ): ?string {
+		// Drop quotes/backslashes/controls that could break Cargo "..." string parsing.
+		$safe = str_replace(
+			[
+				'"', '\\', "\0", "\n", "\r", "\t",
+				// Unicode double-quote lookalikes
+				"\u{201C}", "\u{201D}", "\u{201E}", "\u{201F}", "\u{FF02}",
+				// Guillemets sometimes used as quotes
+				"\u{00AB}", "\u{00BB}",
+			],
+			'',
+			$query
+		);
+		// Remaining C0 / DEL controls
+		$safe = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $safe ) ?? '';
+		$safe = trim( $safe );
+		if ( $safe === '' || mb_strlen( $safe ) < 2 ) {
+			return null;
+		}
+		if ( mb_strlen( $safe ) > 100 ) {
+			$safe = mb_substr( $safe, 0, 100 );
+		}
+		// Escape LIKE metacharacters so user input is a literal substring.
+		// MySQL default ESCAPE is backslash; Cargo passes the WHERE through to SQL.
+		$safe = str_replace( [ '%', '_' ], [ '\\%', '\\_' ], $safe );
+
+		return '%' . $safe . '%';
 	}
 
 	/**

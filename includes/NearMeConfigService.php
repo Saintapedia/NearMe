@@ -19,7 +19,7 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 
 /**
- * Resolves NearMe table sources and defaults for Special:Nearby and the API.
+ * Resolves NearMe table sources and defaults for Special:NearMe and the API.
  */
 class NearMeConfigService {
 

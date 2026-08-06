@@ -90,16 +90,23 @@
 	}
 
 	/**
-	 * Autocomplete suggestions — same stack as Page Forms when available
-	 * (action=pfautocomplete + cargo_table/cargo_field), else Cargo's
-	 * action=cargoautocomplete.
+	 * Typeahead suggestions for the hero name search.
+	 *
+	 * Merges:
+	 *  - Cargo multi-field matches (parishes / configured tables)
+	 *  - Free-form geocode places (cities, addresses) via Nominatim
 	 *
 	 * @param {string} query
 	 * @param {Object} [options]
-	 * @param {Array.<Object>} [options.sources]
 	 * @param {string} [options.table]
 	 * @param {Object.<string,string>} [options.tableLabels]
-	 * @return {jQuery.Promise} resolves to { suggestions: Array.<{title:string,table?:string,tableLabel?:string}> }
+	 * @param {number} [options.limit=10]
+	 * @return {jQuery.Promise} resolves to {
+	 *   suggestions: Array.<{
+	 *     title:string, subtitle?:string, table?:string, tableLabel?:string,
+	 *     lat?:number, lon?:number, url?:string, id?:string, source?:string
+	 *   }>
+	 * }
 	 */
 	function suggestNames( query, options ) {
 		options = options || {};
@@ -108,93 +115,117 @@
 			return $.Deferred().resolve( { suggestions: [] } ).promise();
 		}
 
-		var sources = options.sources || mw.config.get( 'NearMeTables', [] );
-		var tableFilter = options.table || null;
-		var tableLabels = options.tableLabels || null;
-		var usePageForms = !!mw.config.get( 'wgNearMePageFormsAutocomplete', false );
-
-		var targets = sources.filter( function ( source ) {
-			if ( tableFilter && source.table !== tableFilter ) {
-				return false;
-			}
-			return !!getAutocompleteField( source );
-		} );
-
-		if ( targets.length === 0 ) {
-			return $.Deferred().resolve( { suggestions: [] } ).promise();
-		}
-
-		var requests = targets.map( function ( source ) {
-			var field = getAutocompleteField( source );
-			var request;
-			if ( usePageForms ) {
-				request = {
-					action: 'pfautocomplete',
-					format: 'json',
-					cargo_table: source.table,
-					cargo_field: field,
-					substr: query
-				};
-			} else {
-				request = {
-					action: 'cargoautocomplete',
-					format: 'json',
-					table: source.table,
-					field: field,
-					substr: query
-				};
-			}
-
-			return api.get( request ).then( function ( data ) {
-				var raw = [];
-				if ( usePageForms && data && data.pfautocomplete ) {
-					raw = data.pfautocomplete.map( function ( row ) {
-						return row.displaytitle || row.title;
-					} );
-				} else if ( data && data.cargoautocomplete ) {
-					raw = data.cargoautocomplete;
-				}
-				return raw.filter( Boolean ).map( function ( title ) {
-					return {
-						title: title,
-						table: source.table,
-						tableLabel: tableLabels ?
-							( tableLabels[ source.table ] || source.label || source.table ) :
-							( source.label || source.table )
-					};
-				} );
-			}, function () {
-				return [];
-			} );
-		} );
-
-		return $.when.apply( $, requests ).then( function () {
-			var lists = requests.length === 1 ?
-				[ arguments[ 0 ] ] :
-				Array.prototype.slice.call( arguments );
-			var seen = {};
-			var suggestions = [];
-			lists.forEach( function ( list ) {
-				( list || [] ).forEach( function ( item ) {
-					var key = ( item.title || '' ).toLowerCase();
-					if ( !key || seen[ key ] ) {
-						return;
-					}
-					seen[ key ] = true;
-					suggestions.push( item );
-				} );
-			} );
-			// Prefer shorter titles first (Page Forms does this for UX).
-			suggestions.sort( function ( a, b ) {
-				return a.title.length - b.title.length ||
-					a.title.localeCompare( b.title );
-			} );
-			return { suggestions: suggestions.slice( 0, 15 ) };
+		return searchPlaces( query, {
+			table: options.table,
+			tableLabels: options.tableLabels,
+			limit: options.limit || 10,
+			geocodeLimit: 5
+		} ).then( function ( result ) {
+			return { suggestions: result.matches || [] };
 		} );
 	}
 
 	/**
-	 * Field used for Page Forms / Cargo autocomplete (combobox values).
+	 * Free-form place geocode (Nominatim via action=cargonearbygeocode).
+	 *
+	 * @param {string} query
+	 * @param {Object} [options]
+	 * @param {number} [options.limit=5]
+	 * @return {jQuery.Promise}
+	 */
+	function geocodePlaces( query, options ) {
+		options = options || {};
+		if ( !mw.config.get( 'NearMeGeocodeEnabled', true ) ) {
+			return $.Deferred().resolve( { matches: [] } ).promise();
+		}
+		query = ( query || '' ).trim();
+		if ( query.length < 2 ) {
+			return $.Deferred().resolve( { matches: [] } ).promise();
+		}
+
+		return api.get( {
+			action: 'cargonearbygeocode',
+			format: 'json',
+			gsearch: query,
+			gslimit: options.limit || 5
+		} ).then( function ( data ) {
+			var rows = ( data && data.cargonearbygeocode ) ? data.cargonearbygeocode : [];
+			return {
+				matches: rows.map( function ( row ) {
+					if ( row.lat == null || row.lon == null || !row.title ) {
+						return null;
+					}
+					return {
+						title: row.title,
+						subtitle: row.subtitle || '',
+						lat: row.lat,
+						lon: row.lon,
+						source: row.type === 'coordinates' ? 'coordinates' : 'geocode',
+						tableLabel: mw.msg( 'nearme-name-search-place-badge' ),
+						id: 'geo:' + row.lat + ',' + row.lon,
+						url: null
+					};
+				} ).filter( Boolean )
+			};
+		}, function () {
+			return { matches: [] };
+		} );
+	}
+
+	/**
+	 * Combined place search: Cargo rows + free-form geocode.
+	 * Geocode failures never fail the whole search.
+	 *
+	 * @param {string} query
+	 * @param {Object} [options]
+	 * @return {jQuery.Promise}
+	 */
+	function searchPlaces( query, options ) {
+		options = options || {};
+		var cargoLimit = options.limit || 20;
+		var geocodeLimit = options.geocodeLimit || 5;
+
+		var cargoPromise = searchByName( query, {
+			table: options.table,
+			tableLabels: options.tableLabels,
+			limit: cargoLimit
+		} ).then( function ( result ) {
+			return ( result.matches || [] ).map( function ( match ) {
+				match.source = 'cargo';
+				if ( !match.tableLabel ) {
+					match.tableLabel = mw.msg( 'nearme-name-search-wiki-badge' );
+				}
+				return match;
+			} );
+		}, function () {
+			return [];
+		} );
+
+		var geoPromise = geocodePlaces( query, { limit: geocodeLimit } ).then( function ( result ) {
+			return result.matches || [];
+		} );
+
+		return $.when( cargoPromise, geoPromise ).then( function ( cargoMatches, geoMatches ) {
+			// Prefer wiki rows first, then free-form places.
+			var merged = ( cargoMatches || [] ).concat( geoMatches || [] );
+			var seen = {};
+			var out = [];
+			merged.forEach( function ( item ) {
+				var key = item.source === 'cargo' ?
+					( 'c:' + ( item.id || item.title ) ) :
+					( 'g:' + Number( item.lat ).toFixed( 5 ) + ',' + Number( item.lon ).toFixed( 5 ) );
+				if ( seen[ key ] ) {
+					return;
+				}
+				seen[ key ] = true;
+				out.push( item );
+			} );
+			return { matches: out };
+		} );
+	}
+
+	/**
+	 * Primary label field for a source (used for display defaults).
 	 *
 	 * @param {Object} source
 	 * @return {string|null}
@@ -277,6 +308,8 @@
 	window.NearMeApi = {
 		getPagesAtCoordinates: getPagesAtCoordinates,
 		searchByName: searchByName,
+		searchPlaces: searchPlaces,
+		geocodePlaces: geocodePlaces,
 		suggestNames: suggestNames,
 		getAutocompleteField: getAutocompleteField,
 		formatDistance: formatDistance,

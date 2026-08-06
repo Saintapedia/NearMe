@@ -2,7 +2,7 @@
 /**
  * API module: action=cargonearbysearch
  *
- * Text search for Cargo rows that have coordinates (hero name search on Special:Nearby).
+ * Text search for Cargo rows that have coordinates (hero name search on Special:NearMe).
  *
  * @file
  */
@@ -39,6 +39,15 @@ class ApiCargoNearbySearch extends ApiBase {
 	public function execute(): void {
 		if ( !ExtensionRegistry::getInstance()->isLoaded( 'Cargo' ) ) {
 			$this->dieWithError( 'nearme-error-cargo-missing', 'cargo-missing' );
+		}
+
+		// Anonymous multi-table LIKE search — share Cargo's query limiter when set,
+		// plus NearMe's dedicated key (defaults registered in NearMeHooks).
+		if (
+			$this->getUser()->pingLimiter( 'nearme-search' ) ||
+			$this->getUser()->pingLimiter( 'cargo-query' )
+		) {
+			$this->dieWithError( 'apierror-ratelimited' );
 		}
 
 		$params = $this->extractRequestParams();

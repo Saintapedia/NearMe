@@ -1,6 +1,6 @@
 {
 	"name": "saintapedia/nearme",
-	"description": "MediaWiki extension: Cargo-backed Special:Nearby for Saintapedia",
+	"description": "MediaWiki extension: Cargo-backed Special:NearMe for Saintapedia",
 	"license": "MIT",
 	"require": {
 		"php": ">=8.1"

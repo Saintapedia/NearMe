@@ -17,7 +17,7 @@
       "coordField": "Coordinates",
       "labelField": "LocationTitle",
       "label": "Footprints tours",
-      "default": true,
+      "default": false,
       "searchFields": [ "LocationTitle", "_pageName" ],
       "displayFields": [ "LocationTitle" ]
     },

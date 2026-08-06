@@ -1,6 +1,6 @@
 <?php
 /**
- * Special:Nearby — location-based article discovery from Cargo coordinates.
+ * Special:NearMe — location-based article discovery from Cargo coordinates.
  *
  * @file
  */
@@ -17,14 +17,14 @@ use ParserOptions;
 use SpecialPage;
 
 /**
- * Provide Special:Nearby with Cargo-backed nearby pages.
+ * Provide Special:NearMe with Cargo-backed nearby pages.
  */
 class SpecialNearby extends SpecialPage {
 
 	private NearMeConfigService $configService;
 
 	public function __construct( ?NearMeConfigService $configService = null ) {
-		parent::__construct( 'Nearby' );
+		parent::__construct( 'NearMe' );
 		$this->configService = $configService ?? new NearMeConfigService();
 	}
 
@@ -68,6 +68,7 @@ class SpecialNearby extends SpecialPage {
 			'NearMeDefaultRadius' => $nearMeConfig['defaultRadius'],
 			'NearMeDefaultLimit' => $nearMeConfig['defaultLimit'],
 			'NearMeExamples' => $examples,
+			'NearMeGeocodeEnabled' => (bool)$this->getConfig()->get( 'NearMeGeocodeEnabled' ),
 			'wgNearMePageFormsAutocomplete' => $registry->isLoaded( 'PageForms' ),
 		] );
 

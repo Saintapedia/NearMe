@@ -2,7 +2,7 @@
 /**
  * API module: action=cargonearby
  *
- * Cargo-backed geosearch for Special:Nearby and the NearMe frontend.
+ * Cargo-backed geosearch for Special:NearMe and the NearMe frontend.
  *
  * @file
  */
