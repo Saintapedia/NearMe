@@ -12,8 +12,10 @@ declare( strict_types = 1 );
 
 namespace MediaWiki\Extension\NearMe;
 
+use BagOStuff;
 use MediaWiki\Http\HttpRequestFactory;
 use MediaWiki\MediaWikiServices;
+use ObjectCache;
 use WANObjectCache;
 use Wikimedia\IPUtils;
 
@@ -33,14 +35,19 @@ class NearbyGeocodeService {
 
 	private HttpRequestFactory $http;
 	private WANObjectCache $cache;
+	/** Shared cluster cache with atomic add() (Memcached/Redis). */
+	private BagOStuff $lockCache;
 
 	public function __construct(
 		?HttpRequestFactory $http = null,
-		?WANObjectCache $cache = null
+		?WANObjectCache $cache = null,
+		?BagOStuff $lockCache = null
 	) {
 		$services = MediaWikiServices::getInstance();
 		$this->http = $http ?? $services->getHttpRequestFactory();
 		$this->cache = $cache ?? $services->getMainWANObjectCache();
+		// Local cluster BagOStuff supports atomic add(); WANObjectCache does not expose it.
+		$this->lockCache = $lockCache ?? ObjectCache::getLocalClusterInstance();
 	}
 
 	/**
@@ -119,18 +126,18 @@ class NearbyGeocodeService {
 	/**
 	 * Atomic wiki-wide gate for outbound geocode HTTP (all users share one budget).
 	 *
-	 * Uses BagOStuff/WANObjectCache::add() (set-if-absent) so concurrent PHP-FPM
-	 * workers cannot both pass a get-then-set race. Only the worker that creates
-	 * the short-lived key may issue an outbound request during that TTL window.
+	 * Uses BagOStuff::add() (set-if-absent) on the local cluster cache so concurrent
+	 * PHP-FPM workers cannot both pass a get-then-set race. Only the worker that
+	 * creates the short-lived key may issue an outbound request during that TTL window.
 	 *
 	 * @param float $minInterval Seconds between outbound requests
 	 */
 	private function acquireOutboundSlot( float $minInterval ): bool {
-		$key = $this->cache->makeKey( 'nearme-geocode', 'outbound-lock' );
+		$key = $this->lockCache->makeKey( 'nearme-geocode', 'outbound-lock' );
 		// Integer TTL only; ceil(1.1) => 2s is slightly stricter than 1.1s (safer for Nominatim).
 		$ttl = max( 1, (int)ceil( $minInterval ) );
 		// add() is atomic across the cache backend (Memcached/Redis/etc.).
-		return $this->cache->add( $key, microtime( true ), $ttl );
+		return $this->lockCache->add( $key, microtime( true ), $ttl );
 	}
 
 	/**
