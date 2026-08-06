@@ -19,11 +19,11 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 
 /**
- * Resolves NearMe table sources and defaults for Special:Nearby and the API.
+ * Resolves NearMe table sources and defaults for Special:NearMe and the API.
  */
 class NearMeConfigService {
 
-	private const CACHE_VERSION = 4;
+	private const CACHE_VERSION = 5;
 	private const CACHE_TTL = 300;
 
 	/** @var array<int,array<string,mixed>>|null */
@@ -39,7 +39,9 @@ class NearMeConfigService {
 	 *     coordField:string,
 	 *     labelField?:string,
 	 *     label?:string,
-	 *     default?:bool
+	 *     default?:bool,
+	 *     searchFields?:array<int,string>,
+	 *     displayFields?:array<int,string>
 	 *   }>,
 	 *   examples:array<int,array{label:string,lat:float,lon:float}>
 	 * }
@@ -215,7 +217,15 @@ class NearMeConfigService {
 
 	/**
 	 * @param array<int,mixed> $raw
-	 * @return array<int,array{table:string,coordField:string,labelField?:string,label?:string,default?:bool}>
+	 * @return array<int,array{
+	 *   table:string,
+	 *   coordField:string,
+	 *   labelField?:string,
+	 *   label?:string,
+	 *   default?:bool,
+	 *   searchFields?:array<int,string>,
+	 *   displayFields?:array<int,string>
+	 * }>
 	 */
 	private function normalizeSourceList( array $raw ): array {
 		$normalized = [];
@@ -240,6 +250,14 @@ class NearMeConfigService {
 				$source['labelField'] = (string)$entry['labelField'];
 			}
 
+			// Optional single field for Page Forms / Cargo autocomplete (combobox values).
+			if ( isset( $entry['autocompleteField'] ) && $entry['autocompleteField'] !== '' ) {
+				$ac = trim( (string)$entry['autocompleteField'] );
+				if ( preg_match( '/^_?[A-Za-z][A-Za-z0-9_]*$/', $ac ) ) {
+					$source['autocompleteField'] = $ac;
+				}
+			}
+
 			if ( isset( $entry['label'] ) && $entry['label'] !== '' ) {
 				$source['label'] = (string)$entry['label'];
 			} else {
@@ -250,10 +268,43 @@ class NearMeConfigService {
 				$source['default'] = true;
 			}
 
+			$searchFields = $this->normalizeFieldList( $entry['searchFields'] ?? null );
+			if ( $searchFields !== [] ) {
+				$source['searchFields'] = $searchFields;
+			}
+
+			$displayFields = $this->normalizeFieldList( $entry['displayFields'] ?? null );
+			if ( $displayFields !== [] ) {
+				$source['displayFields'] = $displayFields;
+			}
+
 			$normalized[] = $source;
 		}
 
 		return $normalized;
+	}
+
+	/**
+	 * @param mixed $raw
+	 * @return array<int,string>
+	 */
+	private function normalizeFieldList( $raw ): array {
+		if ( !is_array( $raw ) ) {
+			return [];
+		}
+		$fields = [];
+		foreach ( $raw as $field ) {
+			if ( !is_string( $field ) && !is_int( $field ) && !is_float( $field ) ) {
+				continue;
+			}
+			$name = trim( (string)$field );
+			// Cargo field names: letters, digits, underscore; allow leading _ for _pageName.
+			if ( $name === '' || !preg_match( '/^_?[A-Za-z][A-Za-z0-9_]*$/', $name ) ) {
+				continue;
+			}
+			$fields[] = $name;
+		}
+		return array_values( array_unique( $fields ) );
 	}
 
 	/**

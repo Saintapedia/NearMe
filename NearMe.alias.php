@@ -2,7 +2,7 @@
 /**
  * Aliases for special pages provided by NearMe.
  *
- * NearMe is a deprecated alias kept for bookmarks; canonical name is Nearby.
+ * Canonical name is NearMe only (no Nearby alias).
  *
  * @file
  */
@@ -11,5 +11,5 @@ $specialPageAliases = [];
 
 /** English (English) */
 $specialPageAliases['en'] = [
-	'Nearby' => [ 'Nearby', 'NearMe' ],
+	'NearMe' => [ 'NearMe' ],
 ];

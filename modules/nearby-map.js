@@ -3,6 +3,10 @@
  *
  * Requires Extension:Maps (ext.maps.leaflet.library).
  *
+ * Result pins use CSS divIcons (not Leaflet default PNGs) so markers stay
+ * visible even when Maps' egMapsScriptPath imagePath is wrong (common on
+ * Canasta user-extension layouts).
+ *
  * @module nearby-map
  */
 ( function () {
@@ -16,8 +20,10 @@
 	function NearMeMap( container ) {
 		this.container = container;
 		this.map = null;
-		this.cluster = null;
+		this.resultsLayer = null;
 		this.centerMarker = null;
+		/** @type {Object.<string, L.Marker>} */
+		this.markersById = {};
 	}
 
 	NearMeMap.prototype.getTileLayer = function () {
@@ -25,60 +31,34 @@
 		try {
 			return L.tileLayer.provider( layerName );
 		} catch ( err ) {
-			return L.tileLayer.provider( DEFAULT_LAYER );
+			try {
+				return L.tileLayer.provider( DEFAULT_LAYER );
+			} catch ( err2 ) {
+				// Last resort: plain OSM tiles (no leaflet-providers).
+				return L.tileLayer( 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+					maxZoom: 19,
+					attribution: '&copy; OpenStreetMap'
+				} );
+			}
 		}
 	};
 
 	/**
-	 * Maps' Leaflet cluster CSS omits default circle backgrounds; use its PNG icons.
+	 * Numbered pin matching the results list (1-based index).
 	 *
-	 * @return {L.LayerGroup|L.MarkerClusterGroup}
+	 * @param {number} index1
+	 * @param {boolean} [isPlace]
+	 * @return {L.DivIcon}
 	 */
-	NearMeMap.prototype.createClusterLayer = function () {
-		if ( window.maps && window.maps.leaflet && window.maps.leaflet.LeafletCluster ) {
-			return window.maps.leaflet.LeafletCluster.newLayer( {
-				clustermaxradius: 50,
-				clustermaxzoom: 18,
-				clusterzoomonclick: true,
-				clusterspiderfy: true
-			} );
-		}
-
-		if ( typeof L.markerClusterGroup !== 'function' ) {
-			return L.layerGroup();
-		}
-
-		var imagePath = mw.config.get( 'egMapsScriptPath', '/w/extensions/Maps/' ) +
-			'resources/leaflet/cluster/';
-
-		return L.markerClusterGroup( {
-			showCoverageOnHover: false,
-			maxClusterRadius: 50,
-			iconCreateFunction: function ( cluster ) {
-				var childCount = cluster.getChildCount();
-				var styles = [
-					{ iconUrl: imagePath + 'm1.png', iconSize: [ 53, 52 ] },
-					{ iconUrl: imagePath + 'm2.png', iconSize: [ 56, 55 ] },
-					{ iconUrl: imagePath + 'm3.png', iconSize: [ 66, 65 ] },
-					{ iconUrl: imagePath + 'm4.png', iconSize: [ 78, 77 ] },
-					{ iconUrl: imagePath + 'm5.png', iconSize: [ 90, 89 ] }
-				];
-				var index = 0;
-				var dv = childCount;
-				while ( dv !== 0 ) {
-					dv = parseInt( dv / 10, 10 );
-					index++;
-				}
-				index = Math.max( 0, Math.min( styles.length - 1, index - 1 ) );
-				var style = styles[ index ];
-
-				return L.divIcon( {
-					iconSize: style.iconSize,
-					className: 'nearme-cluster-icon',
-					html: '<img alt="" src="' + mw.html.escape( style.iconUrl ) + '" />' +
-						'<span class="nearme-cluster-icon__count">' + childCount + '</span>'
-				} );
-			}
+	NearMeMap.prototype.makeResultIcon = function ( index1, isPlace ) {
+		var label = String( index1 );
+		var cls = 'nearme-map-pin' + ( isPlace ? ' nearme-map-pin--place' : '' );
+		return L.divIcon( {
+			className: cls,
+			html: '<span class="nearme-map-pin__dot">' + mw.html.escape( label ) + '</span>',
+			iconSize: [ 28, 28 ],
+			iconAnchor: [ 14, 14 ],
+			popupAnchor: [ 0, -14 ]
 		} );
 	};
 
@@ -92,23 +72,28 @@
 			scrollWheelZoom: false
 		} );
 		this.getTileLayer().addTo( this.map );
-		this.cluster = this.createClusterLayer();
-		this.map.addLayer( this.cluster );
+		// LayerGroup (not cluster): numbered pins stay readable and do not
+		// depend on Maps cluster PNG paths under /extensions/Maps/.
+		this.resultsLayer = L.layerGroup().addTo( this.map );
 	};
 
 	/**
-	 * @param {{lat: number, lon: number}} center
-	 * @param {Object[]} pages Result cards from NearMeApi.toCard
+	 * @param {{lat: number, lon: number}|null} center Search origin (null for name-match maps)
+	 * @param {Object[]} pages Result cards from NearMeApi.toCard / name matches
 	 * @param {Object} [options]
 	 * @param {boolean} [options.fitBounds=true] When false, only refresh markers (keep camera).
+	 * @param {function(Object):void} [options.onMarkerClick] Called when a result marker is clicked
 	 */
 	NearMeMap.prototype.update = function ( center, pages, options ) {
 		var self = this;
 		options = options || {};
 		var shouldFitBounds = options.fitBounds !== false;
+		var onMarkerClick = typeof options.onMarkerClick === 'function' ?
+			options.onMarkerClick : null;
 
 		this.ensureMap();
-		this.cluster.clearLayers();
+		this.resultsLayer.clearLayers();
+		this.markersById = {};
 
 		if ( this.centerMarker ) {
 			this.map.removeLayer( this.centerMarker );
@@ -116,51 +101,120 @@
 		}
 
 		var bounds = L.latLngBounds( [] );
-		var centerLatLng = L.latLng( center.lat, center.lon );
+		var centerLatLng = null;
 
-		this.centerMarker = L.circleMarker( centerLatLng, {
-			radius: 8,
-			color: '#36c',
-			fillColor: '#36c',
-			fillOpacity: 0.9,
-			weight: 2
-		} ).bindPopup( mw.msg( 'nearme-map-you-are-here' ) ).addTo( this.map );
-		bounds.extend( centerLatLng );
+		if ( center && center.lat != null && center.lon != null ) {
+			centerLatLng = L.latLng( center.lat, center.lon );
+			this.centerMarker = L.circleMarker( centerLatLng, {
+				radius: 9,
+				color: '#fff',
+				fillColor: '#36c',
+				fillOpacity: 1,
+				weight: 2
+			} ).bindPopup( mw.msg( 'nearme-map-you-are-here' ) ).addTo( this.map );
+			bounds.extend( centerLatLng );
+		}
 
+		var index1 = 0;
 		pages.forEach( function ( page ) {
 			if ( page.lat == null || page.lon == null ) {
 				return;
 			}
+			index1 += 1;
 			var latlng = L.latLng( page.lat, page.lon );
-			var popup = '<a href="' + mw.html.escape( page.url ) + '">' +
-				mw.html.escape( page.title ) + '</a>';
+			var isPlace = page.source === 'geocode' || page.source === 'coordinates';
+			var popup = page.url ?
+				'<a href="' + mw.html.escape( page.url ) + '">' +
+				mw.html.escape( page.title ) + '</a>' :
+				mw.html.escape( page.title );
+			if ( page.subtitle ) {
+				popup += '<br><span class="nearme-map__distance">' +
+					mw.html.escape( page.subtitle ) + '</span>';
+			}
 			if ( page.proximity ) {
 				popup += '<br><span class="nearme-map__distance">' +
 					mw.html.escape( page.proximity ) + '</span>';
 			}
-			self.cluster.addLayer( L.marker( latlng ).bindPopup( popup ) );
+			if ( onMarkerClick ) {
+				popup += '<br><button type="button" class="nearme-map__nearby-btn">' +
+					mw.html.escape( mw.msg( 'nearme-name-search-nearby' ) ) +
+					'</button>';
+			}
+
+			var marker = L.marker( latlng, {
+				icon: self.makeResultIcon( index1, isPlace ),
+				title: page.title || ''
+			} ).bindPopup( popup );
+
+			if ( onMarkerClick ) {
+				marker.on( 'popupopen', function () {
+					var btn = self.container.querySelector( '.nearme-map__nearby-btn' );
+					if ( btn ) {
+						btn.addEventListener( 'click', function ( event ) {
+							event.preventDefault();
+							onMarkerClick( page );
+						} );
+					}
+				} );
+			}
+
+			self.resultsLayer.addLayer( marker );
+			var id = page.id || ( page.lat + ',' + page.lon + ':' + index1 );
+			self.markersById[ id ] = marker;
+			// Also index by list position for click-from-list.
+			self.markersById[ 'i:' + index1 ] = marker;
 			bounds.extend( latlng );
 		} );
 
 		if ( shouldFitBounds ) {
 			if ( bounds.isValid() ) {
-				this.map.fitBounds( bounds.pad( 0.12 ) );
-			} else {
+				var pad = pages.length === 1 && !centerLatLng ? 0.35 : 0.12;
+				this.map.fitBounds( bounds.pad( pad ) );
+				if ( pages.length === 1 && !centerLatLng ) {
+					var z = this.map.getZoom();
+					if ( z > 14 ) {
+						this.map.setZoom( 14 );
+					}
+				}
+			} else if ( centerLatLng ) {
 				this.map.setView( centerLatLng, 14 );
 			}
 		}
 
 		setTimeout( function () {
-			self.map.invalidateSize();
+			if ( self.map ) {
+				self.map.invalidateSize();
+			}
 		}, 0 );
+	};
+
+	/**
+	 * Open the popup for a result (by page id or 1-based list index).
+	 *
+	 * @param {string|number} idOrIndex
+	 */
+	NearMeMap.prototype.openResult = function ( idOrIndex ) {
+		if ( !this.map ) {
+			return;
+		}
+		var marker = this.markersById[ idOrIndex ] ||
+			this.markersById[ 'i:' + idOrIndex ];
+		if ( marker ) {
+			marker.openPopup();
+			var ll = marker.getLatLng();
+			if ( ll ) {
+				this.map.panTo( ll );
+			}
+		}
 	};
 
 	NearMeMap.prototype.destroy = function () {
 		if ( this.map ) {
 			this.map.remove();
 			this.map = null;
-			this.cluster = null;
+			this.resultsLayer = null;
 			this.centerMarker = null;
+			this.markersById = {};
 		}
 	};
 

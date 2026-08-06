@@ -1,5 +1,5 @@
 /**
- * NearMe styles — Special:Nearby
+ * NearMe styles — Special:NearMe
  */
 
 .nearme-intro {
@@ -50,8 +50,66 @@
 	outline-offset: 2px;
 }
 
+.nearme-map-heading {
+	margin: 0 0 0.35rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #202122;
+}
+
 .nearme-map-wrap {
 	margin: 0 0 1rem;
+}
+
+/* Numbered result pins (CSS-only — no Leaflet PNG dependency) */
+.nearme-map-pin {
+	background: transparent;
+	border: 0;
+}
+
+.nearme-map-pin__dot {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: #b32424;
+	color: #fff;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1;
+	border: 2px solid #fff;
+	box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.35 );
+}
+
+.nearme-map-pin--place .nearme-map-pin__dot {
+	background: #ac6600;
+}
+
+.nearme-list__map-num {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	margin-right: 0.4rem;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: #b32424;
+	color: #fff;
+	font-size: 0.75rem;
+	font-weight: 700;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.nearme-list__map-num:hover,
+.nearme-list__map-num:focus {
+	outline: 2px solid #36c;
+	outline-offset: 1px;
 }
 
 .nearme-map-toggle {
@@ -133,6 +191,212 @@
 	color: #54595d;
 	margin: 0;
 	text-align: center;
+}
+
+.nearme-name-search {
+	text-align: left;
+	margin: 1rem auto 0;
+	max-width: 28rem;
+}
+
+.nearme-name-search__label {
+	display: block;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: #202122;
+	margin: 0 0 0.25rem;
+	text-align: left;
+}
+
+.nearme-name-search__hint {
+	font-size: 0.875rem;
+	color: #54595d;
+	margin: 0 0 0.5rem;
+	text-align: left;
+	line-height: 1.4;
+}
+
+.nearme-name-search__row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: stretch;
+}
+
+.nearme-name-search__combo {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.nearme-name-search__input {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 1em;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #a2a9b1;
+	border-radius: 2px;
+	background: #fff;
+	color: #202122;
+}
+
+.nearme-name-suggestions {
+	position: absolute;
+	z-index: 5;
+	left: 0;
+	right: 0;
+	top: 100%;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	max-height: 14rem;
+	overflow-y: auto;
+	background: #fff;
+	border: 1px solid #a2a9b1;
+	border-top: 0;
+	border-radius: 0 0 2px 2px;
+	box-shadow: 0 2px 6px rgba( 0, 0, 0, 0.12 );
+	text-align: left;
+}
+
+.nearme-name-suggestions[hidden] {
+	display: none;
+}
+
+.nearme-name-suggestions__btn {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.1rem;
+	width: 100%;
+	padding: 0.45rem 0.75rem;
+	border: 0;
+	border-bottom: 1px solid #eaecf0;
+	background: transparent;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	color: #202122;
+}
+
+.nearme-name-suggestions__btn:hover,
+.nearme-name-suggestions__btn:focus {
+	background: #eaf3ff;
+	outline: none;
+}
+
+.nearme-name-suggestions__meta {
+	font-size: 0.8em;
+	color: #54595d;
+}
+
+.nearme-name-search__input:focus-visible {
+	outline: 2px solid #36c;
+	outline-offset: -1px;
+	border-color: #36c;
+}
+
+/* Map under hero name-search match list */
+.nearme-hero .nearme-map-wrap {
+	margin: 1rem 0 0;
+	text-align: left;
+}
+
+.nearme-list__badge--place {
+	background: #fef6e7;
+	border-color: #fc3;
+	color: #654;
+}
+
+.nearme-map__nearby-btn {
+	margin-top: 0.35rem;
+	padding: 0.25rem 0.5rem;
+	font: inherit;
+	font-size: 0.875rem;
+	cursor: pointer;
+	border: 1px solid #a2a9b1;
+	border-radius: 2px;
+	background: #f8f9fa;
+	color: #0645ad;
+}
+
+.nearme-map__nearby-btn:hover,
+.nearme-map__nearby-btn:focus {
+	background: #eaf3ff;
+	outline: none;
+}
+
+.nearme-button--secondary {
+	flex: 0 0 auto;
+	background: #f8f9fa;
+	border-color: #a2a9b1;
+	color: #202122;
+	white-space: nowrap;
+}
+
+.nearme-name-matches {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+	text-align: left;
+	max-width: 28rem;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.nearme-name-matches__item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.35rem 0.75rem;
+	padding: 0.65rem 0;
+	border-bottom: 1px solid #c8ccd1;
+}
+
+.nearme-name-matches__nearby {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.15rem;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	font-weight: 600;
+	color: #0645ad;
+	text-align: left;
+	cursor: pointer;
+}
+
+.nearme-name-matches__nearby:hover,
+.nearme-name-matches__nearby:focus-visible {
+	text-decoration: underline;
+}
+
+.nearme-name-matches__nearby:focus-visible {
+	outline: 2px solid #36c;
+	outline-offset: 2px;
+}
+
+.nearme-name-matches__subtitle {
+	font-weight: 400;
+	font-size: 0.85em;
+	color: #54595d;
+}
+
+.nearme-name-matches__action {
+	font-weight: 400;
+	font-size: 0.85em;
+	color: #54595d;
+}
+
+.nearme-name-matches__page {
+	flex: 0 0 auto;
+	font-size: 0.875rem;
+	white-space: nowrap;
 }
 
 .nearme-examples {
@@ -254,18 +518,24 @@
 
 .nearme-list__item {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: auto minmax(0, 1fr) auto;
 	grid-template-areas:
-		'badge distance'
-		'link distance';
+		'num badge distance'
+		'num link distance';
 	align-items: baseline;
-	gap: 0.15rem 1rem;
+	gap: 0.15rem 0.65rem;
 	padding: 0.85rem 0;
 	border-bottom: 1px solid #c8ccd1;
 }
 
 .nearme-list__item:not( .nearme-list__item--with-badge ) {
-	grid-template-areas: 'link distance';
+	grid-template-areas:
+		'num link distance';
+}
+
+.nearme-list__map-num {
+	grid-area: num;
+	align-self: center;
 }
 
 .nearme-list__badge {

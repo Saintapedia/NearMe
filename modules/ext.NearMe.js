@@ -1,5 +1,5 @@
 /**
- * NearMe frontend — Special:Nearby
+ * NearMe frontend — Special:NearMe
  *
  * Hash routes (NearbyPages-compatible):
  *   #/coord/lat,lon
@@ -80,6 +80,11 @@
 		this.selectedTable = this.getInitialTable();
 		this.pages = [];
 		this.filterQuery = '';
+		this.nameQuery = '';
+		this.nameMatches = [];
+		this.nameSearching = false;
+		this.nameSearchError = null;
+		this.nameSearchDebounceTimer = null;
 		this.center = null;
 		this.error = null;
 		this.loading = false;
@@ -148,6 +153,363 @@
 		} );
 		html += '</p>';
 		return html;
+	};
+
+	/**
+	 * Name search on the empty hero (find a place, then show nearby from there).
+	 *
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderNameSearch = function () {
+		return '<div class="nearme-name-search">' +
+			'<label class="nearme-name-search__label" for="nearme-name-search">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-label' ) ) +
+			'</label>' +
+			'<p class="nearme-name-search__hint">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-hint' ) ) +
+			'</p>' +
+			'<div class="nearme-name-search__row">' +
+			'<div class="nearme-name-search__combo">' +
+			'<input type="search" id="nearme-name-search" class="nearme-name-search__input" ' +
+			'placeholder="' + mw.html.escape( mw.msg( 'nearme-name-search-placeholder' ) ) + '" ' +
+			'value="' + mw.html.escape( this.nameQuery || '' ) + '" ' +
+			'autocomplete="off" enterkeyhint="search" ' +
+			'role="combobox" aria-autocomplete="list" aria-expanded="false" ' +
+			'aria-controls="nearme-name-suggestions" />' +
+			'<ul id="nearme-name-suggestions" class="nearme-name-suggestions" role="listbox" hidden></ul>' +
+			'</div>' +
+			'<button type="button" class="nearme-button nearme-button--secondary" id="nearme-name-search-btn">' +
+			mw.html.escape( mw.msg( 'nearme-name-search-button' ) ) +
+			'</button>' +
+			'</div>' +
+			'</div>';
+	};
+
+	/**
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderNameMatches = function () {
+		var self = this;
+		var html = '';
+
+		if ( this.nameSearching ) {
+			html += '<div class="nearme-message nearme-message--loading" role="status">' +
+				mw.html.escape( mw.msg( 'nearme-name-searching' ) ) +
+				'</div>';
+			return html;
+		}
+
+		if ( this.nameSearchError ) {
+			html += '<div class="nearme-message nearme-message--error" role="status">' +
+				mw.html.escape( this.nameSearchError ) +
+				'</div>';
+			return html;
+		}
+
+		if ( !this.nameQuery || this.nameQuery.trim().length < 2 ) {
+			return html;
+		}
+
+		if ( this.nameMatches.length === 0 ) {
+			html += '<div class="nearme-message nearme-message--empty" role="status">' +
+				mw.html.escape( mw.msg( 'nearme-name-search-no-matches' ) ) +
+				'</div>';
+			return html;
+		}
+
+		html += '<ul class="nearme-name-matches" aria-label="' +
+			mw.html.escape( mw.msg( 'nearme-name-search-label' ) ) + '">';
+		this.nameMatches.forEach( function ( match, index ) {
+			var isPlace = match.source === 'geocode' || match.source === 'coordinates';
+			var badge = match.tableLabel ||
+				( isPlace ? mw.msg( 'nearme-name-search-place-badge' ) : '' );
+			// Always badge free-form places; wiki badges when multi-table or mixed results.
+			var showBadge = !!badge && ( isPlace || self.showTableBadges() || self.hasMixedNameSources() );
+			html += '<li class="nearme-name-matches__item">';
+			if ( showBadge ) {
+				html += '<span class="nearme-list__badge' +
+					( isPlace ? ' nearme-list__badge--place' : '' ) + '">' +
+					mw.html.escape( badge ) + '</span>';
+			}
+			html += '<button type="button" class="nearme-name-matches__nearby" ' +
+				'data-index="' + index + '">' +
+				mw.html.escape( match.title ) +
+				( match.subtitle ?
+					'<span class="nearme-name-matches__subtitle">' +
+					mw.html.escape( match.subtitle ) + '</span>' : '' ) +
+				'<span class="nearme-name-matches__action">' +
+				mw.html.escape( mw.msg( 'nearme-name-search-nearby' ) ) +
+				'</span></button>';
+			if ( match.url ) {
+				html += '<a class="nearme-name-matches__page" href="' +
+					mw.html.escape( match.url ) + '">' +
+					mw.html.escape( mw.msg( 'nearme-name-search-open-page' ) ) +
+					'</a>';
+			}
+			html += '</li>';
+		} );
+		html += '</ul>';
+		return html;
+	};
+
+	/**
+	 * @return {boolean}
+	 */
+	NearMeApp.prototype.hasMixedNameSources = function () {
+		var hasCargo = false;
+		var hasPlace = false;
+		( this.nameMatches || [] ).forEach( function ( m ) {
+			if ( m.source === 'geocode' || m.source === 'coordinates' ) {
+				hasPlace = true;
+			} else {
+				hasCargo = true;
+			}
+		} );
+		return hasCargo && hasPlace;
+	};
+
+	NearMeApp.prototype.clearNameSearchDebounce = function () {
+		if ( this.nameSearchDebounceTimer ) {
+			clearTimeout( this.nameSearchDebounceTimer );
+			this.nameSearchDebounceTimer = null;
+		}
+	};
+
+	NearMeApp.prototype.bindNameSearch = function () {
+		var self = this;
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var btn = this.root.querySelector( '#nearme-name-search-btn' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
+		if ( !input ) {
+			return;
+		}
+
+		var runSearch = function () {
+			self.clearNameSearchDebounce();
+			self.hideNameSuggestions();
+			self.nameQuery = input.value;
+			self.runNameSearch();
+		};
+
+		input.addEventListener( 'input', function () {
+			self.nameQuery = input.value;
+			self.clearNameSearchDebounce();
+			// Live suggestions: Cargo rows + free-form geocode (Nominatim).
+			// Debounce a bit longer to respect geocoder rate limits.
+			self.nameSearchDebounceTimer = setTimeout( function () {
+				self.nameSearchDebounceTimer = null;
+				self.refreshNameSuggestions();
+			}, 400 );
+		} );
+		input.addEventListener( 'keydown', function ( event ) {
+			if ( event.key === 'Enter' ) {
+				event.preventDefault();
+				runSearch();
+			} else if ( event.key === 'Escape' ) {
+				self.hideNameSuggestions();
+			} else if ( event.key === 'ArrowDown' && list && !list.hidden ) {
+				event.preventDefault();
+				var first = list.querySelector( 'button' );
+				if ( first ) {
+					first.focus();
+				}
+			}
+		} );
+		input.addEventListener( 'blur', function () {
+			// Delay so suggestion click can fire first.
+			setTimeout( function () {
+				self.hideNameSuggestions();
+			}, 150 );
+		} );
+		if ( btn ) {
+			btn.addEventListener( 'click', runSearch );
+		}
+
+		var matchButtons = this.root.querySelectorAll( '.nearme-name-matches__nearby' );
+		matchButtons.forEach( function ( matchBtn ) {
+			matchBtn.addEventListener( 'click', function () {
+				var index = parseInt( matchBtn.getAttribute( 'data-index' ), 10 );
+				var match = self.nameMatches[ index ];
+				if ( match && match.lat != null && match.lon != null ) {
+					self.nameMatches = [];
+					self.nameSearchError = null;
+					self.loadPages( match.lat, match.lon );
+				}
+			} );
+		} );
+	};
+
+	/**
+	 * Update the PF/Cargo autocomplete dropdown without a full re-render.
+	 */
+	NearMeApp.prototype.refreshNameSuggestions = function () {
+		var self = this;
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
+		if ( !input || !list ) {
+			return;
+		}
+
+		var query = ( this.nameQuery || '' ).trim();
+		if ( query.length < 2 ) {
+			this.hideNameSuggestions();
+			return;
+		}
+
+		var requestId = ( this.nameSuggestRequestId || 0 ) + 1;
+		this.nameSuggestRequestId = requestId;
+
+		nearbyApi.suggestNames( query, {
+			sources: this.sources,
+			table: this.selectedTable || undefined,
+			tableLabels: this.tableLabels
+		} ).then( function ( result ) {
+			if ( requestId !== self.nameSuggestRequestId ) {
+				return;
+			}
+			var suggestions = result.suggestions || [];
+			if ( suggestions.length === 0 ) {
+				self.hideNameSuggestions();
+				return;
+			}
+
+			var html = '';
+			suggestions.forEach( function ( item, index ) {
+				var isPlace = item.source === 'geocode' || item.source === 'coordinates';
+				var meta = item.subtitle || item.tableLabel || '';
+				if ( isPlace && item.tableLabel && item.subtitle ) {
+					meta = item.tableLabel + ' · ' + item.subtitle;
+				} else if ( isPlace && item.tableLabel ) {
+					meta = item.tableLabel;
+				}
+				html += '<li role="option">' +
+					'<button type="button" class="nearme-name-suggestions__btn" data-index="' +
+					index + '">' + mw.html.escape( item.title );
+				if ( meta ) {
+					html += '<span class="nearme-name-suggestions__meta">' +
+						mw.html.escape( meta ) + '</span>';
+				}
+				html += '</button></li>';
+			} );
+			list.innerHTML = html;
+			list.hidden = false;
+			input.setAttribute( 'aria-expanded', 'true' );
+
+			// Capture list for the click handlers below.
+			self._nameSuggestions = suggestions;
+			list.querySelectorAll( '.nearme-name-suggestions__btn' ).forEach( function ( btn ) {
+				btn.addEventListener( 'mousedown', function ( event ) {
+					// mousedown before blur hides the list.
+					event.preventDefault();
+					var idx = parseInt( btn.getAttribute( 'data-index' ), 10 );
+					var picked = self._nameSuggestions && self._nameSuggestions[ idx ];
+					if ( !picked ) {
+						return;
+					}
+					input.value = picked.title;
+					self.nameQuery = picked.title;
+					self.hideNameSuggestions();
+					// Suggestions already include coordinates — jump to nearby (map + list).
+					if ( picked.lat != null && picked.lon != null ) {
+						self.nameMatches = [];
+						self.nameSearchError = null;
+						self.loadPages( picked.lat, picked.lon );
+						return;
+					}
+					self.runNameSearch( { preferNearbyIfSingle: true } );
+				} );
+			} );
+		}, function () {
+			if ( requestId === self.nameSuggestRequestId ) {
+				self.hideNameSuggestions();
+			}
+		} );
+	};
+
+	NearMeApp.prototype.hideNameSuggestions = function () {
+		var input = this.root.querySelector( '#nearme-name-search' );
+		var list = this.root.querySelector( '#nearme-name-suggestions' );
+		if ( list ) {
+			list.hidden = true;
+			list.innerHTML = '';
+		}
+		if ( input ) {
+			input.setAttribute( 'aria-expanded', 'false' );
+		}
+		this._nameSuggestions = [];
+	};
+
+	/**
+	 * @param {Object} [options]
+	 * @param {boolean} [options.preferNearbyIfSingle] If one match, open nearby immediately.
+	 */
+	NearMeApp.prototype.runNameSearch = function ( options ) {
+		var self = this;
+		options = options || {};
+		var query = ( this.nameQuery || '' ).trim();
+
+		if ( query.length < 2 ) {
+			this.nameMatches = [];
+			this.nameSearching = false;
+			this.nameSearchError = query.length === 0 ? null :
+				mw.msg( 'nearme-name-search-too-short' );
+			this.render();
+			this.focusNameSearch();
+			return;
+		}
+
+		this.nameSearching = true;
+		this.nameSearchError = null;
+		this.error = null;
+		this.render();
+		this.focusNameSearch();
+
+		// Cargo table rows + free-form world places (geocode). Not limited to wiki data.
+		nearbyApi.searchPlaces( query, {
+			table: this.selectedTable || undefined,
+			tableLabels: this.tableLabels,
+			limit: 20,
+			geocodeLimit: 8
+		} ).then( function ( result ) {
+			// Ignore stale responses if the user kept typing.
+			if ( ( self.nameQuery || '' ).trim() !== query ) {
+				return;
+			}
+			self.nameSearching = false;
+			self.nameMatches = result.matches || [];
+			if ( options.preferNearbyIfSingle && self.nameMatches.length === 1 ) {
+				var only = self.nameMatches[ 0 ];
+				self.nameMatches = [];
+				self.loadPages( only.lat, only.lon );
+				return;
+			}
+			self.render();
+			self.focusNameSearch();
+		}, function () {
+			if ( ( self.nameQuery || '' ).trim() !== query ) {
+				return;
+			}
+			self.nameSearching = false;
+			self.nameMatches = [];
+			self.nameSearchError = mw.msg( 'nearme-error' );
+			self.render();
+			self.focusNameSearch();
+		} );
+	};
+
+	NearMeApp.prototype.focusNameSearch = function () {
+		var input = this.root.querySelector( '#nearme-name-search' );
+		if ( !input ) {
+			return;
+		}
+		// Restore focus after full re-render (hero name search).
+		var len = input.value.length;
+		input.focus();
+		try {
+			input.setSelectionRange( len, len );
+		} catch ( err ) {
+			// Some input types may not support setSelectionRange.
+		}
 	};
 
 	NearMeApp.prototype.bindExamples = function () {
@@ -317,6 +679,7 @@
 		}
 		this.updateSearchStatus();
 		resultsEl.innerHTML = this.renderResultsList();
+		this.bindResultsMapLinks();
 		// Filter path: refresh markers without re-fitting the camera each keystroke.
 		this.updateMap( { reuseMap: true, fitBounds: false } );
 	};
@@ -328,6 +691,7 @@
 		var self = this;
 		var filtered = this.getFilteredPages();
 		var html = '';
+		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
 
 		// Empty / count messaging lives in #nearme-search-status (persistent live region).
 		// This container only holds the result list so filter updates do not tear down aria-live.
@@ -336,10 +700,21 @@
 		}
 
 		html += '<ol class="nearme-list">';
-		filtered.forEach( function ( page ) {
+		filtered.forEach( function ( page, index ) {
 			var showBadge = self.showTableBadges() && page.tableLabel;
+			var n = index + 1;
 			html += '<li class="nearme-list__item' +
-				( showBadge ? ' nearme-list__item--with-badge' : '' ) + '">';
+				( showBadge ? ' nearme-list__item--with-badge' : '' ) +
+				'" data-map-index="' + n + '" data-page-id="' +
+				mw.html.escape( page.id || '' ) + '">';
+			if ( mapsEnabled ) {
+				html += '<button type="button" class="nearme-list__map-num" ' +
+					'data-map-index="' + n + '" title="' +
+					mw.html.escape( mw.msg( 'nearme-map-show-on-map' ) ) +
+					'" aria-label="' +
+					mw.html.escape( mw.msg( 'nearme-map-show-on-map' ) ) +
+					'">' + n + '</button>';
+			}
 			if ( showBadge ) {
 				html += '<span class="nearme-list__badge">' + mw.html.escape( page.tableLabel ) + '</span>';
 			}
@@ -368,12 +743,44 @@
 		}
 	};
 
+	/**
+	 * @return {boolean}
+	 */
+	NearMeApp.prototype.hasNameMatchMap = function () {
+		return this.pages.length === 0 &&
+			this.nameMatches &&
+			this.nameMatches.length > 0 &&
+			!this.nameSearching;
+	};
+
+	/**
+	 * Markup for the Leaflet map container (nearby results or name matches).
+	 *
+	 * @param {string} ariaLabel
+	 * @return {string}
+	 */
+	NearMeApp.prototype.renderMapShell = function ( ariaLabel ) {
+		return '<div class="nearme-map-wrap' +
+			( this.mapCollapsed ? ' nearme-map-wrap--collapsed' : '' ) + '">' +
+			'<button type="button" class="nearme-map-toggle" aria-expanded="' +
+			( this.mapCollapsed ? 'false' : 'true' ) +
+			'" aria-controls="nearme-map">' +
+			mw.html.escape( mw.msg( 'nearme-map-toggle' ) ) + '</button>' +
+			'<div id="nearme-map" class="nearme-map" role="region" aria-label="' +
+			mw.html.escape( ariaLabel ) + '"></div></div>';
+	};
+
 	NearMeApp.prototype.render = function () {
 		var self = this;
 		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
-		var hasMap = this.pages.length > 0 && mapsEnabled;
+		var showNameMatchMap = mapsEnabled && this.hasNameMatchMap();
+		// Nearby result pages → map with numbered pins (matches list order).
+		var showNearbyMap = mapsEnabled && this.pages.length > 0;
+		var hasMap = showNearbyMap || showNameMatchMap;
 		var shellClass = 'nearme-shell' + ( hasMap ? ' nearme-shell--with-map' : '' );
-		var showHero = this.pages.length === 0 && !this.loading && !this.locating && !this.error;
+		// Show hero (incl. name search) whenever there is no nearby-results list.
+		// Keep it available after location errors so users can still search by name.
+		var showHero = this.pages.length === 0 && !this.loading && !this.locating;
 
 		// Full re-render replaces the DOM; drop any pending filter timer so it
 		// cannot fire against a torn-down results container.
@@ -405,20 +812,20 @@
 			html += '<div class="nearme-hero">' +
 				'<h3 class="nearme-hero__heading">' + mw.html.escape( mw.msg( 'nearme-info-heading' ) ) + '</h3>' +
 				'<p class="nearme-hero__description">' + mw.html.escape( mw.msg( 'nearme-info-description' ) ) + '</p>' +
-				this.renderExamples() +
+				this.renderNameSearch() +
+				this.renderNameMatches();
+			if ( showNameMatchMap ) {
+				html += this.renderMapShell( mw.msg( 'nearme-map-label-search' ) );
+			}
+			html += this.renderExamples() +
 				'</div>';
 		}
 
 		if ( this.pages.length > 0 ) {
 			if ( mapsEnabled ) {
-				html += '<div class="nearme-map-wrap' + ( this.mapCollapsed ? ' nearme-map-wrap--collapsed' : '' ) + '">';
-				html += '<button type="button" class="nearme-map-toggle" aria-expanded="' +
-					( this.mapCollapsed ? 'false' : 'true' ) +
-					'" aria-controls="nearme-map">' +
-					mw.html.escape( mw.msg( 'nearme-map-toggle' ) ) + '</button>';
-				html += '<div id="nearme-map" class="nearme-map" role="region" aria-label="' +
-					mw.html.escape( mw.msg( 'nearme-map-label' ) ) + '"></div>';
-				html += '</div>';
+				html += '<p class="nearme-map-heading">' +
+					mw.html.escape( mw.msg( 'nearme-map-heading' ) ) + '</p>';
+				html += this.renderMapShell( mw.msg( 'nearme-map-label' ) );
 			}
 			html += this.renderSearch();
 			// Persistent live region: textContent is updated in place on filter changes.
@@ -460,9 +867,33 @@
 
 		this.bindTablePicker();
 		this.bindExamples();
+		this.bindNameSearch();
 		this.bindSearch();
+		this.bindResultsMapLinks();
 		this.updateSearchStatus();
 		this.updateMap( { reuseMap: false, fitBounds: true } );
+	};
+
+	/**
+	 * Numbered list buttons open the matching map pin popup.
+	 */
+	NearMeApp.prototype.bindResultsMapLinks = function () {
+		var self = this;
+		var buttons = this.root.querySelectorAll( '.nearme-list__map-num' );
+		buttons.forEach( function ( btn ) {
+			btn.addEventListener( 'click', function ( event ) {
+				event.preventDefault();
+				var index = parseInt( btn.getAttribute( 'data-map-index' ), 10 );
+				if ( !index || !self.mapView || typeof self.mapView.openResult !== 'function' ) {
+					return;
+				}
+				self.mapView.openResult( index );
+				var mapEl = self.root.querySelector( '#nearme-map' );
+				if ( mapEl && mapEl.scrollIntoView ) {
+					mapEl.scrollIntoView( { behavior: 'smooth', block: 'nearest' } );
+				}
+			} );
+		} );
 	};
 
 	/**
@@ -474,12 +905,11 @@
 		options = options || {};
 		var preferReuse = !!options.reuseMap;
 		var fitBounds = options.fitBounds !== false;
+		var mapsEnabled = mw.config.get( 'wgNearMeMapsEnabled', false );
+		var nameMatchMode = this.hasNameMatchMap();
+		var nearbyMode = this.pages.length > 0 && !!this.center;
 
-		if ( !mw.config.get( 'wgNearMeMapsEnabled', false ) || !this.center || this.pages.length === 0 ) {
-			return;
-		}
-
-		if ( this.mapCollapsed ) {
+		if ( !mapsEnabled || this.mapCollapsed || ( !nearbyMode && !nameMatchMode ) ) {
 			return;
 		}
 
@@ -497,15 +927,33 @@
 			if ( generation !== self.mapUpdateGeneration ) {
 				return;
 			}
-			if ( !window.NearMeMap || !self.center ) {
+			if ( !window.NearMeMap ) {
 				return;
 			}
-			// Read filter state at apply time so async map loads cannot use a stale snapshot.
-			var filtered = self.getFilteredPages();
+
+			var center = null;
+			var markers = [];
+			var mapOptions = { fitBounds: preferReuse ? fitBounds : true };
+
+			if ( self.pages.length > 0 && self.center ) {
+				center = self.center;
+				markers = self.getFilteredPages();
+			} else if ( self.hasNameMatchMap() ) {
+				// Name-search matches: markers only (no "search origin" pin).
+				markers = self.nameMatches;
+				mapOptions.onMarkerClick = function ( match ) {
+					if ( match && match.lat != null && match.lon != null ) {
+						self.nameMatches = [];
+						self.nameSearchError = null;
+						self.loadPages( match.lat, match.lon );
+					}
+				};
+			} else {
+				return;
+			}
 
 			if ( preferReuse && self.mapView ) {
-				// Existing map: honor fitBounds (false while typing so the camera does not jump).
-				self.mapView.update( self.center, filtered, { fitBounds: fitBounds } );
+				self.mapView.update( center, markers, mapOptions );
 				return;
 			}
 
@@ -517,14 +965,20 @@
 				self.mapView = null;
 			}
 			self.mapView = new window.NearMeMap( mapEl );
-			self.mapView.update( self.center, filtered, { fitBounds: true } );
+			mapOptions.fitBounds = true;
+			self.mapView.update( center, markers, mapOptions );
 		}
 
 		if ( window.NearMeMap ) {
 			applyMap();
-		} else if ( mw.loader.getState( 'ext.NearMe.maps' ) !== null ) {
-			mw.loader.using( 'ext.NearMe.maps' ).then( applyMap );
+			return;
 		}
+		// Always try to load the maps module (do not rely on getState === null).
+		mw.loader.using( 'ext.NearMe.maps' ).then( applyMap, function () {
+			if ( window.console && window.console.error ) {
+				window.console.error( 'NearMe: failed to load ext.NearMe.maps' );
+			}
+		} );
 	};
 
 	NearMeApp.prototype.setError = function ( messageKey ) {
@@ -560,7 +1014,10 @@
 		this.showButtonDisabled = true;
 		this.pages = [];
 		this.filterQuery = '';
+		this.nameMatches = [];
+		this.nameSearchError = null;
 		this.clearFilterDebounce();
+		this.clearNameSearchDebounce();
 		this.render();
 
 		var coordPath = '/coord/' + lat + ',' + lon;
@@ -636,6 +1093,7 @@
 		this.pages = [];
 		this.filterQuery = '';
 		this.clearFilterDebounce();
+		this.clearNameSearchDebounce();
 		this.center = null;
 		this.error = null;
 		this.loading = false;

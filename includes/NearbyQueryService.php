@@ -157,6 +157,249 @@ class NearbyQueryService {
 	}
 
 	/**
+	 * Cargo-query front: LIKE over configured search fields; only rows with coordinates.
+	 *
+	 * Equivalent in spirit to action=cargoquery with a generated tables/fields/where,
+	 * but does not require the runcargoqueries right (anonymous Special:NearMe use).
+	 *
+	 * @param array{
+	 *   table:string,
+	 *   coordField:string,
+	 *   labelField?:string,
+	 *   searchFields?:array<int,string>,
+	 *   displayFields?:array<int,string>
+	 * } $source
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function searchSource( array $source, string $query, int $limit ): array {
+		$query = trim( $query );
+		if ( $query === '' || mb_strlen( $query ) < 2 ) {
+			return [];
+		}
+		if ( mb_strlen( $query ) > 100 ) {
+			$query = mb_substr( $query, 0, 100 );
+		}
+
+		$table = $source['table'];
+		$coordField = $source['coordField'];
+		$labelField = $source['labelField'] ?? null;
+		$searchFields = $this->resolveSearchFields( $source );
+		$displayFields = $this->resolveDisplayFields( $source );
+
+		// Build a Cargo double-quoted LIKE pattern for literal substring match.
+		// Field names are config-validated elsewhere; only $query is untrusted input.
+		$like = $this->buildLiteralLikePattern( $query );
+		if ( $like === null ) {
+			return [];
+		}
+
+		$conditions = [];
+		foreach ( $searchFields as $field ) {
+			$conditions[] = $field . ' LIKE "' . $like . '"';
+		}
+		if ( $conditions === [] ) {
+			return [];
+		}
+		$where = '(' . implode( ' OR ', $conditions ) . ')';
+
+		$fields = [
+			'_pageName',
+			'_pageID',
+			'_pageNamespace',
+			$coordField,
+			$coordField . '__lat',
+			$coordField . '__lon',
+		];
+		if ( $labelField !== null && $labelField !== '' ) {
+			$fields[] = $labelField;
+		}
+		foreach ( $displayFields as $displayField ) {
+			if ( !in_array( $displayField, $fields, true ) ) {
+				$fields[] = $displayField;
+			}
+		}
+
+		$orderBy = ( $labelField !== null && $labelField !== '' ) ? $labelField : '_pageName';
+
+		$sqlQuery = CargoSQLQuery::newFromValues(
+			$table,
+			implode( ',', $fields ),
+			$where,
+			'',
+			'',
+			'',
+			$orderBy,
+			(string)$limit,
+			''
+		);
+
+		$rows = $sqlQuery->run();
+		$results = [];
+
+		foreach ( $rows as $row ) {
+			$parsed = $this->parseRowCoordinates( $row, $coordField );
+			if ( $parsed === null ) {
+				continue;
+			}
+
+			[ $rowLat, $rowLon ] = $parsed;
+			$pageName = $row['_pageName'] ?? '';
+			if ( $pageName === '' ) {
+				continue;
+			}
+
+			$ns = (int)( $row['_pageNamespace'] ?? 0 );
+			$pageId = (int)( $row['_pageID'] ?? 0 );
+			$title = Title::makeTitleSafe( $ns, $pageName );
+			if ( $title === null ) {
+				continue;
+			}
+			if ( $pageId <= 0 ) {
+				$pageId = $title->getArticleID();
+			}
+
+			$label = $pageName;
+			if ( $labelField !== null && isset( $row[$labelField] ) && $row[$labelField] !== '' ) {
+				$label = (string)$row[$labelField];
+			}
+
+			$display = [];
+			foreach ( $displayFields as $displayField ) {
+				if ( !isset( $row[$displayField] ) || $row[$displayField] === '' ) {
+					continue;
+				}
+				$display[$displayField] = (string)$row[$displayField];
+			}
+
+			$result = [
+				'pageid' => $pageId,
+				'ns' => $ns,
+				'title' => $title->getPrefixedText(),
+				'lat' => $rowLat,
+				'lon' => $rowLon,
+				'label' => $label,
+				'table' => $table,
+			];
+			if ( $display !== [] ) {
+				$result['fields'] = $display;
+			}
+			$results[] = $result;
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Sanitize user text for a Cargo double-quoted LIKE pattern with literal
+	 * substring semantics (leading/trailing % only; user %/_ are escaped).
+	 *
+	 * CargoSQLQuery takes a string WHERE clause, so we cannot bind parameters.
+	 * Defense in depth:
+	 * - Strip characters that could break out of a double-quoted Cargo string
+	 *   (ASCII/Unicode quotes, backslashes, C0 controls)
+	 * - Escape SQL LIKE wildcards % and _ so they match literally
+	 * - Truncate (caller already caps at 100; re-check after stripping)
+	 *
+	 * @return string|null Pattern including surrounding % wildcards, or null if empty
+	 */
+	private function buildLiteralLikePattern( string $query ): ?string {
+		// Drop quotes/backslashes/controls that could break Cargo "..." string parsing.
+		$safe = str_replace(
+			[
+				'"', '\\', "\0", "\n", "\r", "\t",
+				// Unicode double-quote lookalikes
+				"\u{201C}", "\u{201D}", "\u{201E}", "\u{201F}", "\u{FF02}",
+				// Guillemets sometimes used as quotes
+				"\u{00AB}", "\u{00BB}",
+			],
+			'',
+			$query
+		);
+		// Remaining C0 / DEL controls
+		$safe = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $safe ) ?? '';
+		$safe = trim( $safe );
+		if ( $safe === '' || mb_strlen( $safe ) < 2 ) {
+			return null;
+		}
+		if ( mb_strlen( $safe ) > 100 ) {
+			$safe = mb_substr( $safe, 0, 100 );
+		}
+		// Escape LIKE metacharacters so user input is a literal substring.
+		// MySQL default ESCAPE is backslash; Cargo passes the WHERE through to SQL.
+		$safe = str_replace( [ '%', '_' ], [ '\\%', '\\_' ], $safe );
+
+		return '%' . $safe . '%';
+	}
+
+	/**
+	 * Fields OR-matched by LIKE for hero name search (Cargo query front).
+	 *
+	 * @param array{labelField?:string,searchFields?:array<int,string>} $source
+	 * @return array<int,string>
+	 */
+	private function resolveSearchFields( array $source ): array {
+		if ( !empty( $source['searchFields'] ) && is_array( $source['searchFields'] ) ) {
+			return array_values( $source['searchFields'] );
+		}
+		$fields = [ '_pageName' ];
+		$labelField = $source['labelField'] ?? null;
+		if ( $labelField !== null && $labelField !== '' && $labelField !== '_pageName' ) {
+			$fields[] = $labelField;
+		}
+		return $fields;
+	}
+
+	/**
+	 * Extra Cargo columns returned for match subtitles.
+	 *
+	 * @param array{displayFields?:array<int,string>,labelField?:string} $source
+	 * @return array<int,string>
+	 */
+	private function resolveDisplayFields( array $source ): array {
+		if ( !empty( $source['displayFields'] ) && is_array( $source['displayFields'] ) ) {
+			return array_values( $source['displayFields'] );
+		}
+		return [];
+	}
+
+	/**
+	 * Search all sources by name, merge, de-dupe by title, truncate.
+	 *
+	 * @param array<int,array{table:string,coordField:string,labelField?:string}> $sources
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function searchAll( array $sources, string $query, int $limit ): array {
+		$merged = [];
+		$seen = [];
+		foreach ( $sources as $source ) {
+			try {
+				$rows = $this->searchSource( $source, $query, $limit );
+			} catch ( \Exception $e ) {
+				wfDebugLog( 'NearMe', 'Cargo name search failed for ' . $source['table'] . ': ' . $e->getMessage() );
+				continue;
+			}
+			foreach ( $rows as $row ) {
+				$key = $row['title'] . '|' . $row['table'];
+				if ( isset( $seen[$key] ) ) {
+					continue;
+				}
+				$seen[$key] = true;
+				$merged[] = $row;
+			}
+		}
+
+		usort( $merged, static function ( $a, $b ) {
+			return strcasecmp( (string)$a['label'], (string)$b['label'] );
+		} );
+
+		if ( count( $merged ) > $limit ) {
+			$merged = array_slice( $merged, 0, $limit );
+		}
+
+		return $merged;
+	}
+
+	/**
 	 * @param array<string,mixed> $row
 	 * @return array{0:float,1:float}|null
 	 */

@@ -1,8 +1,8 @@
 <?php
 /**
- * API module: action=cargonearby
+ * API module: action=cargonearbysearch
  *
- * Cargo-backed geosearch for Special:NearMe and the NearMe frontend.
+ * Text search for Cargo rows that have coordinates (hero name search on Special:NearMe).
  *
  * @file
  */
@@ -19,7 +19,7 @@ use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 /**
  * @ingroup API
  */
-class ApiCargoNearby extends ApiBase {
+class ApiCargoNearbySearch extends ApiBase {
 
 	private NearbyQueryService $queryService;
 	private NearMeConfigService $configService;
@@ -41,27 +41,23 @@ class ApiCargoNearby extends ApiBase {
 			$this->dieWithError( 'nearme-error-cargo-missing', 'cargo-missing' );
 		}
 
+		// Anonymous multi-table LIKE search — share Cargo's query limiter when set,
+		// plus NearMe's dedicated key (defaults registered in NearMeHooks).
+		if (
+			$this->getUser()->pingLimiter( 'nearme-search' ) ||
+			$this->getUser()->pingLimiter( 'cargo-query' )
+		) {
+			$this->dieWithError( 'apierror-ratelimited' );
+		}
+
 		$params = $this->extractRequestParams();
-		$coord = $params['gscoord'];
-		$parts = explode( '|', $coord, 2 );
-		if ( count( $parts ) !== 2 ) {
-			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
-		}
-
-		if ( !is_numeric( $parts[0] ) || !is_numeric( $parts[1] ) ) {
-			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
-		}
-
-		$lat = (float)$parts[0];
-		$lon = (float)$parts[1];
-		if ( $lat < -90 || $lat > 90 || $lon < -180 || $lon > 180 ) {
-			$this->dieWithError( [ 'apierror-badparameter', 'gscoord' ], 'bad-coord' );
+		$query = trim( (string)$params['gsearch'] );
+		if ( mb_strlen( $query ) < 2 ) {
+			$this->dieWithError( 'nearme-name-search-too-short', 'search-too-short' );
 		}
 
 		$mainConfig = $this->getConfig();
-		$maxRadius = (int)$mainConfig->get( 'NearMeMaxRadius' );
 		$maxLimit = (int)$mainConfig->get( 'NearMeMaxLimit' );
-		$radius = min( (int)$params['gsradius'], $maxRadius );
 		$limit = min( (int)$params['gslimit'], $maxLimit );
 
 		/** @var array<int,array{table:string,coordField:string,labelField?:string}> $sources */
@@ -77,7 +73,7 @@ class ApiCargoNearby extends ApiBase {
 			$this->dieWithError( 'nearme-error-no-sources', 'no-sources' );
 		}
 
-		$results = $this->queryService->queryAll( $sources, $lat, $lon, $radius, $limit );
+		$results = $this->queryService->searchAll( $sources, $query, $limit );
 
 		$this->getResult()->addValue( null, $this->getModuleName(), $results );
 	}
@@ -100,19 +96,13 @@ class ApiCargoNearby extends ApiBase {
 		$mainConfig = $this->getConfig();
 
 		return [
-			'gscoord' => [
+			'gsearch' => [
 				self::PARAM_TYPE => 'string',
 				self::PARAM_REQUIRED => true,
 			],
-			'gsradius' => [
-				self::PARAM_TYPE => 'integer',
-				self::PARAM_DFLT => $nearMeConfig['defaultRadius'],
-				IntegerDef::PARAM_MIN => 100,
-				IntegerDef::PARAM_MAX => $mainConfig->get( 'NearMeMaxRadius' ),
-			],
 			'gslimit' => [
 				self::PARAM_TYPE => 'integer',
-				self::PARAM_DFLT => $nearMeConfig['defaultLimit'],
+				self::PARAM_DFLT => min( 20, (int)$nearMeConfig['defaultLimit'] ),
 				IntegerDef::PARAM_MIN => 1,
 				IntegerDef::PARAM_MAX => $mainConfig->get( 'NearMeMaxLimit' ),
 			],
@@ -126,8 +116,8 @@ class ApiCargoNearby extends ApiBase {
 	/** @inheritDoc */
 	protected function getExamplesMessages(): array {
 		return [
-			'action=cargonearby&gscoord=40.4406|-79.9959'
-				=> 'apihelp-cargonearby-example-1',
+			'action=cargonearbysearch&gsearch=Mary'
+				=> 'apihelp-cargonearbysearch-example-1',
 		];
 	}
 
