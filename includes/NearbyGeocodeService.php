@@ -28,6 +28,9 @@ class NearbyGeocodeService {
 	/** Default min seconds between outbound HTTP geocodes (Nominatim public policy ~1/s). */
 	private const DEFAULT_MIN_INTERVAL = 1.1;
 
+	/** Seconds a result-fetch lock is held to collapse identical concurrent queries. */
+	private const FETCH_LOCK_TSE = 10;
+
 	private HttpRequestFactory $http;
 	private WANObjectCache $cache;
 
@@ -70,25 +73,78 @@ class NearbyGeocodeService {
 		$limit = min( max( $limit, 1 ), 10 );
 		$baseUrl = rtrim( (string)( $config['url'] ?? 'https://nominatim.openstreetmap.org' ), '/' );
 		$countryCodes = trim( (string)( $config['countryCodes'] ?? '' ) );
+		$minInterval = (float)( $config['minInterval'] ?? self::DEFAULT_MIN_INTERVAL );
 
 		$cacheKey = $this->cache->makeKey(
 			'nearme-geocode',
+			'v2',
 			md5( $query . '|' . $limit . '|' . $baseUrl . '|' . $countryCodes )
 		);
 
-		$cached = $this->cache->get( $cacheKey );
-		if ( is_array( $cached ) ) {
-			return $cached;
-		}
+		// Result cache with lockTSE: concurrent identical queries stampede into one
+		// outbound fetch; other workers wait/reuse rather than each calling Nominatim.
+		// Throttle failures must not be cached (TTL_UNCACHEABLE inside callback).
+		$result = $this->cache->getWithSetCallback(
+			$cacheKey,
+			self::CACHE_TTL,
+			function ( $oldValue, &$ttl ) use ( $query, $limit, $baseUrl, $countryCodes, $minInterval ) {
+				// Aggregate (wiki-wide) gate — atomic set-if-absent, not get-then-set.
+				if ( $minInterval > 0 && !$this->acquireOutboundSlot( $minInterval ) ) {
+					wfDebugLog( 'NearMe', 'Geocode aggregate throttle: skipped outbound for ' . $query );
+					$ttl = WANObjectCache::TTL_UNCACHEABLE;
+					return [];
+				}
 
-		// Aggregate (wiki-wide) throttle for outbound Nominatim calls — not per-IP.
-		// Public nominatim.openstreetmap.org expects ~1 req/s for the whole application.
-		$minInterval = (float)( $config['minInterval'] ?? self::DEFAULT_MIN_INTERVAL );
-		if ( $minInterval > 0 && !$this->acquireOutboundSlot( $minInterval ) ) {
-			wfDebugLog( 'NearMe', 'Geocode aggregate throttle: skipped outbound for ' . $query );
-			return [];
-		}
+				$fetched = $this->fetchFromNominatim( $query, $limit, $baseUrl, $countryCodes );
+				if ( $fetched === null ) {
+					// Transport/parse failure: do not cache empty for a day.
+					$ttl = WANObjectCache::TTL_UNCACHEABLE;
+					return [];
+				}
 
+				return $fetched;
+			},
+			[
+				// Collapse concurrent misses for the same key onto one recompute.
+				'lockTSE' => self::FETCH_LOCK_TSE,
+				// While the lock holder fetches, others get a temporary empty list
+				// rather than also calling Nominatim.
+				'busyValue' => [],
+			]
+		);
+
+		return is_array( $result ) ? $result : [];
+	}
+
+	/**
+	 * Atomic wiki-wide gate for outbound geocode HTTP (all users share one budget).
+	 *
+	 * Uses BagOStuff/WANObjectCache::add() (set-if-absent) so concurrent PHP-FPM
+	 * workers cannot both pass a get-then-set race. Only the worker that creates
+	 * the short-lived key may issue an outbound request during that TTL window.
+	 *
+	 * @param float $minInterval Seconds between outbound requests
+	 */
+	private function acquireOutboundSlot( float $minInterval ): bool {
+		$key = $this->cache->makeKey( 'nearme-geocode', 'outbound-lock' );
+		// Integer TTL only; ceil(1.1) => 2s is slightly stricter than 1.1s (safer for Nominatim).
+		$ttl = max( 1, (int)ceil( $minInterval ) );
+		// add() is atomic across the cache backend (Memcached/Redis/etc.).
+		return $this->cache->add( $key, microtime( true ), $ttl );
+	}
+
+	/**
+	 * Perform the HTTP Nominatim search. Returns null on transport/parse failure
+	 * (caller must not cache), or a (possibly empty) list of place hits.
+	 *
+	 * @return array<int,array<string,mixed>>|null
+	 */
+	private function fetchFromNominatim(
+		string $query,
+		int $limit,
+		string $baseUrl,
+		string $countryCodes
+	): ?array {
 		$params = [
 			'q' => $query,
 			'format' => 'json',
@@ -110,19 +166,22 @@ class NearbyGeocodeService {
 
 		$status = $request->execute();
 		if ( !$status->isOK() ) {
-			wfDebugLog( 'NearMe', 'Geocode HTTP failed for ' . $query . ': ' . $status->getWikiText( false, false, 'en' ) );
-			return [];
+			wfDebugLog(
+				'NearMe',
+				'Geocode HTTP failed for ' . $query . ': ' . $status->getWikiText( false, false, 'en' )
+			);
+			return null;
 		}
 
 		$body = $request->getContent();
 		if ( !is_string( $body ) || $body === '' ) {
-			return [];
+			return null;
 		}
 
 		$decoded = json_decode( $body, true );
 		if ( !is_array( $decoded ) ) {
 			wfDebugLog( 'NearMe', 'Geocode JSON decode failed for ' . $query );
-			return [];
+			return null;
 		}
 
 		$results = [];
@@ -158,7 +217,6 @@ class NearbyGeocodeService {
 			}
 		}
 
-		// Strip null subtitles for cleaner API JSON
 		foreach ( $results as &$r ) {
 			if ( ( $r['subtitle'] ?? null ) === null ) {
 				unset( $r['subtitle'] );
@@ -169,31 +227,7 @@ class NearbyGeocodeService {
 		}
 		unset( $r );
 
-		$this->cache->set( $cacheKey, $results, self::CACHE_TTL );
 		return $results;
-	}
-
-	/**
-	 * Wiki-wide gate for outbound geocode HTTP (all users share one budget).
-	 *
-	 * Uses WANObjectCache timestamps so concurrent PHP workers honor a minimum
-	 * interval between real network calls. Cached lookups never call this.
-	 *
-	 * @param float $minInterval Seconds between outbound requests
-	 */
-	private function acquireOutboundSlot( float $minInterval ): bool {
-		$key = $this->cache->makeKey( 'nearme-geocode', 'outbound-last' );
-		$now = microtime( true );
-		$last = $this->cache->get( $key );
-		if ( is_float( $last ) || is_int( $last ) || ( is_string( $last ) && is_numeric( $last ) ) ) {
-			if ( ( $now - (float)$last ) < $minInterval ) {
-				return false;
-			}
-		}
-		// Soft lock: set before the HTTP call so overlapping workers back off.
-		// TTL covers a short stall window if the request hangs.
-		$this->cache->set( $key, $now, (int)ceil( $minInterval ) + 5 );
-		return true;
 	}
 
 	/**

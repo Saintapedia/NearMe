@@ -167,6 +167,7 @@ $wgNearMeGeocodeEnabled = true;
 - **Default is off** so installing/upgrading NearMe does not start sending visitor queries to a third-party service without an admin choice.
 - The [public Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) expects roughly **1 request/second for the whole application** (not per visitor), a valid identifying `User-Agent` (NearMe sets one), and **self-hosting for heavy or production use**.
 - NearMe still applies: 24h result cache, client debounce, per-IP `$wgRateLimits['nearme-search']`, and an **aggregate** outbound interval (`$wgNearMeGeocodeMinInterval`) shared by all users on the wiki. Per-IP limits alone cannot protect the site IP against concurrent traffic.
+- Aggregate throttle uses an **atomic** cache `add()` (set-if-absent) so concurrent PHP workers cannot race a get-then-set window. Identical concurrent queries are further collapsed via WANObjectCache `lockTSE` stampede protection on the result key.
 - Coordinate paste (`40.44, -79.99`) never hits the network.
 
 **Response:**
