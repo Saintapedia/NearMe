@@ -25,6 +25,9 @@ class NearbyGeocodeService {
 	private const CACHE_TTL = 86400;
 	private const USER_AGENT = 'NearMe-MediaWiki-Extension/0.3 (https://github.com/Saintapedia/NearMe)';
 
+	/** Default min seconds between outbound HTTP geocodes (Nominatim public policy ~1/s). */
+	private const DEFAULT_MIN_INTERVAL = 1.1;
+
 	private HttpRequestFactory $http;
 	private WANObjectCache $cache;
 
@@ -53,13 +56,14 @@ class NearbyGeocodeService {
 			return [];
 		}
 
-		// Direct coordinates: "40.44, -79.99" or "40.44|-79.99"
+		// Direct coordinates: "40.44, -79.99" or "40.44|-79.99" — no external call.
 		$coordMatch = $this->parseCoordinates( $query );
 		if ( $coordMatch !== null ) {
 			return [ $coordMatch ];
 		}
 
-		if ( !( $config['enabled'] ?? true ) ) {
+		// Opt-in only (extension default is false).
+		if ( !( $config['enabled'] ?? false ) ) {
 			return [];
 		}
 
@@ -75,6 +79,14 @@ class NearbyGeocodeService {
 		$cached = $this->cache->get( $cacheKey );
 		if ( is_array( $cached ) ) {
 			return $cached;
+		}
+
+		// Aggregate (wiki-wide) throttle for outbound Nominatim calls — not per-IP.
+		// Public nominatim.openstreetmap.org expects ~1 req/s for the whole application.
+		$minInterval = (float)( $config['minInterval'] ?? self::DEFAULT_MIN_INTERVAL );
+		if ( $minInterval > 0 && !$this->acquireOutboundSlot( $minInterval ) ) {
+			wfDebugLog( 'NearMe', 'Geocode aggregate throttle: skipped outbound for ' . $query );
+			return [];
 		}
 
 		$params = [
@@ -159,6 +171,29 @@ class NearbyGeocodeService {
 
 		$this->cache->set( $cacheKey, $results, self::CACHE_TTL );
 		return $results;
+	}
+
+	/**
+	 * Wiki-wide gate for outbound geocode HTTP (all users share one budget).
+	 *
+	 * Uses WANObjectCache timestamps so concurrent PHP workers honor a minimum
+	 * interval between real network calls. Cached lookups never call this.
+	 *
+	 * @param float $minInterval Seconds between outbound requests
+	 */
+	private function acquireOutboundSlot( float $minInterval ): bool {
+		$key = $this->cache->makeKey( 'nearme-geocode', 'outbound-last' );
+		$now = microtime( true );
+		$last = $this->cache->get( $key );
+		if ( is_float( $last ) || is_int( $last ) || ( is_string( $last ) && is_numeric( $last ) ) ) {
+			if ( ( $now - (float)$last ) < $minInterval ) {
+				return false;
+			}
+		}
+		// Soft lock: set before the HTTP call so overlapping workers back off.
+		// TTL covers a short stall window if the request hangs.
+		$this->cache->set( $key, $now, (int)ceil( $minInterval ) + 5 );
+		return true;
 	}
 
 	/**

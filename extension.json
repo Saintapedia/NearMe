@@ -170,12 +170,12 @@
 			"description": "Optional MediaWiki page name (e.g. NearMe-intro) with wikitext shown above the Nearby app. Leave empty to show no intro."
 		},
 		"NearMeGeocodeEnabled": {
-			"value": true,
-			"description": "When true, hero name search also geocodes free-form places (cities, addresses) via Nominatim so users are not limited to Cargo table rows."
+			"value": false,
+			"description": "Opt-in free-form place geocoding (cities/addresses) for hero search. Default false: wikis must enable deliberately. Public Nominatim expects ~1 req/s aggregate and self-hosting for production; see README."
 		},
 		"NearMeGeocodeUrl": {
 			"value": "https://nominatim.openstreetmap.org",
-			"description": "Base URL for the Nominatim-compatible geocoder used by action=cargonearbygeocode."
+			"description": "Base URL for a Nominatim-compatible geocoder (action=cargonearbygeocode). Prefer a self-hosted instance for production; public nominatim.openstreetmap.org is rate-limited for the whole site IP."
 		},
 		"NearMeGeocodeCountryCodes": {
 			"value": "",
@@ -184,6 +184,10 @@
 		"NearMeGeocodeMaxLimit": {
 			"value": 10,
 			"description": "Maximum number of free-form geocode suggestions per request."
+		},
+		"NearMeGeocodeMinInterval": {
+			"value": 1.1,
+			"description": "Minimum seconds between outbound geocode HTTP requests for this wiki (aggregate, all users). Aligns with public Nominatim ~1 req/s policy. Cached results and coordinate parsing bypass this."
 		}
 	},
 	"manifest_version": 2

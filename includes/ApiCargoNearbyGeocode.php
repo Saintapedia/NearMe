@@ -59,6 +59,7 @@ class ApiCargoNearbyGeocode extends ApiBase {
 			'enabled' => true,
 			'url' => (string)$mainConfig->get( 'NearMeGeocodeUrl' ),
 			'countryCodes' => (string)$mainConfig->get( 'NearMeGeocodeCountryCodes' ),
+			'minInterval' => (float)$mainConfig->get( 'NearMeGeocodeMinInterval' ),
 		] );
 
 		$this->getResult()->addValue( null, $this->getModuleName(), $results );

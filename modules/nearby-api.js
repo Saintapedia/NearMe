@@ -135,7 +135,8 @@
 	 */
 	function geocodePlaces( query, options ) {
 		options = options || {};
-		if ( !mw.config.get( 'NearMeGeocodeEnabled', true ) ) {
+		// Extension default is opt-in (false); only call when the wiki enabled it.
+		if ( !mw.config.get( 'NearMeGeocodeEnabled', false ) ) {
 			return $.Deferred().resolve( { matches: [] } ).promise();
 		}
 		query = ( query || '' ).trim();

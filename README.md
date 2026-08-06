@@ -8,10 +8,12 @@ Built for [Saintapedia](https://saintapedia.org) as a Cargo-native alternative t
 
 - **Special:NearMe** with geolocation and manual coordinate URLs (`#/coord/40.44,-79.99`)
 - **Name search (Cargo query front)** — landing-screen search over configured Cargo fields, then show pages near a match (no GPS; no `runcargoqueries` right required)
-- **Page Forms autocomplete** — when Page Forms is installed, typeahead uses the same `action=pfautocomplete` Cargo-field path as form fields (falls back to Cargo `cargoautocomplete`)
+- **Free-form place geocode (opt-in)** — optional Nominatim-compatible geocoding so any city/address can center the map (`$wgNearMeGeocodeEnabled`; default **off**)
 - **Result filter** — after nearby results load, filter the list and map by name
 - **`action=cargonearby` API** returning distance-sorted results from Cargo tables
 - **`action=cargonearbysearch` API** — constrained Cargo-style name query for rows with coordinates
+- **`action=cargonearbygeocode` API** — free-form place → coordinates (when geocode is enabled)
+
 - **Parish-first** — defaults to Saintapedia's `Parishes` Cargo table (`ParishLocation` coordinates)
 - **Example location** — “Try without GPS” link for Philadelphia, PA (override via `$wgNearMeExamples` or wiki config)
 - **Multi-table support** — add Saints, Shrines, etc. via `$wgNearMeTables`
@@ -136,6 +138,36 @@ Example Parishes entry:
 ```
 
 This is intentionally a **safe subset** of `action=cargoquery` (fixed tables from config, generated WHERE, coordinates required) so anonymous Special:NearMe users can search without the `runcargoqueries` right. User input is sanitized for Cargo double-quoted strings and LIKE wildcards (`%` / `_`) are escaped for literal substring match. The endpoint is rate-limited via `$wgRateLimits['nearme-search']` (defaults: 30/min anon IP) and also participates in Cargo’s `cargo-query` limiter when that is configured.
+
+**Free-form place geocoding (opt-in):**
+
+Hero search can also resolve arbitrary cities/addresses (not only Cargo rows) via a Nominatim-compatible geocoder.
+
+```
+GET /api.php?action=cargonearbygeocode&format=json&gsearch=Pittsburgh&gslimit=5
+```
+
+| Config | Default | Purpose |
+|--------|---------|---------|
+| `$wgNearMeGeocodeEnabled` | **`false`** | Must be set `true` to turn on free-form geocode (opt-in) |
+| `$wgNearMeGeocodeUrl` | `https://nominatim.openstreetmap.org` | Nominatim-compatible base URL |
+| `$wgNearMeGeocodeCountryCodes` | `''` | Optional ISO country bias (e.g. `us`) |
+| `$wgNearMeGeocodeMaxLimit` | `10` | Max geocode hits per request |
+| `$wgNearMeGeocodeMinInterval` | `1.1` | **Wiki-wide** minimum seconds between *outbound* HTTP geocode calls |
+
+```php
+// LocalSettings.php — enable after choosing an endpoint you are allowed to use
+$wgNearMeGeocodeEnabled = true;
+// Production: self-host Nominatim (or another compatible service), do not rely on the public OSM instance
+// $wgNearMeGeocodeUrl = 'https://nominatim.example.org';
+```
+
+**Nominatim / deployment notes**
+
+- **Default is off** so installing/upgrading NearMe does not start sending visitor queries to a third-party service without an admin choice.
+- The [public Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) expects roughly **1 request/second for the whole application** (not per visitor), a valid identifying `User-Agent` (NearMe sets one), and **self-hosting for heavy or production use**.
+- NearMe still applies: 24h result cache, client debounce, per-IP `$wgRateLimits['nearme-search']`, and an **aggregate** outbound interval (`$wgNearMeGeocodeMinInterval`) shared by all users on the wiki. Per-IP limits alone cannot protect the site IP against concurrent traffic.
+- Coordinate paste (`40.44, -79.99`) never hits the network.
 
 **Response:**
 
